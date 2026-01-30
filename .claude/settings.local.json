@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmd /c \"dir %APPDATA%\\\\MoriaMODCreator\\\\utilities\")",
+      "Bash(start python:*)",
+      "Bash(UAssetGUI.exe --help)",
+      "Bash(UAssetGUI.exe:*)",
+      "Bash(cmd /c \"cd /d C:\\\\Users\\\\johnb\\\\AppData\\\\Roaming\\\\MoriaMODCreator\\\\utilities && dir && UAssetGUI.exe --help 2>&1\")",
+      "Bash(cmd /c \"cd /d C:\\\\Users\\\\johnb\\\\AppData\\\\Roaming\\\\MoriaMODCreator\\\\utilities && dir\")",
+      "Bash(powershell -Command \"Get-ChildItem ''C:\\\\Users\\\\johnb\\\\AppData\\\\Roaming\\\\MoriaMODCreator\\\\utilities''\")",
+      "Bash(powershell -Command \"& ''C:\\\\Users\\\\johnb\\\\AppData\\\\Roaming\\\\MoriaMODCreator\\\\utilities\\\\UAssetGUI.exe'' --help 2>&1\")",
+      "Bash(powershell -Command:*)",
+      "Bash(pip show:*)",
+      "Bash(pip install:*)",
+      "Bash(del \"c:\\\\Users\\\\johnb\\\\OneDrive\\\\Documents\\\\Projects\\\\Moria MOD Creator\\\\src\\\\jsonpath_handler.py\")"
+    ]
+  }
+}

@@ -1,0 +1,233 @@
+"""Configuration management for Moria MOD Creator."""
+
+import os
+import configparser
+from pathlib import Path
+
+
+# Color scheme options
+COLOR_SCHEMES = ["Match Windows Theme", "Light Mode", "Dark Mode"]
+DEFAULT_COLOR_SCHEME = "Match Windows Theme"
+
+# Config cache
+_config_cache: configparser.ConfigParser | None = None
+_config_cache_mtime: float | None = None
+
+
+def get_appdata_dir() -> Path:
+    """Get the application data directory in %APPDATA%\MoriaMODCreator."""
+    appdata = os.environ.get('APPDATA')
+    if not appdata:
+        appdata = Path.home() / 'AppData' / 'Roaming'
+    app_dir = Path(appdata) / 'MoriaMODCreator'
+    app_dir.mkdir(parents=True, exist_ok=True)
+    return app_dir
+
+
+def get_default_utilities_dir() -> Path:
+    """Get the default utilities directory."""
+    return get_appdata_dir() / 'utilities'
+
+
+def get_default_output_dir() -> Path:
+    """Get the default output directory."""
+    return get_appdata_dir() / 'output'
+
+
+def get_default_mymodfiles_dir() -> Path:
+    """Get the default My MOD Files directory."""
+    return get_appdata_dir() / 'mymodfiles'
+
+
+def get_default_definitions_dir() -> Path:
+    """Get the default MOD Definitions directory."""
+    return get_appdata_dir() / 'definitions'
+
+
+def get_config_path() -> Path:
+    """Get the path to the config.ini file."""
+    return get_appdata_dir() / 'config.ini'
+
+
+def config_exists() -> bool:
+    """Check if the configuration file exists."""
+    return get_config_path().exists()
+
+
+def load_config() -> configparser.ConfigParser:
+    """Load the configuration from config.ini with caching.
+
+    The config is cached and only reloaded if the file has been modified.
+    """
+    global _config_cache, _config_cache_mtime
+
+    config_path = get_config_path()
+
+    # Check if we need to reload
+    if config_path.exists():
+        current_mtime = config_path.stat().st_mtime
+        if _config_cache is not None and _config_cache_mtime == current_mtime:
+            return _config_cache
+
+        # Load and cache
+        config = configparser.ConfigParser()
+        config.read(config_path)
+        _config_cache = config
+        _config_cache_mtime = current_mtime
+        return config
+    else:
+        # No config file, return empty config
+        _config_cache = None
+        _config_cache_mtime = None
+        return configparser.ConfigParser()
+
+
+def save_config(
+    game_install_path: str,
+    install_type: str,
+    utilities_dir: str,
+    output_dir: str,
+    mymodfiles_dir: str,
+    definitions_dir: str,
+    color_scheme: str
+) -> None:
+    """Save the configuration to config.ini.
+
+    Args:
+        game_install_path: The path to the game installation.
+        install_type: The type of installation (Steam, Epic Games, or Custom).
+        utilities_dir: The path to the utilities directory.
+        output_dir: The path to the output directory.
+        mymodfiles_dir: The path to the My MOD Files directory.
+        definitions_dir: The path to the MOD Definitions directory.
+        color_scheme: The color scheme setting.
+    """
+    global _config_cache, _config_cache_mtime
+
+    # Invalidate cache before saving
+    _config_cache = None
+    _config_cache_mtime = None
+
+    config = configparser.ConfigParser()
+    config['Game'] = {
+        'install_path': game_install_path,
+        'install_type': install_type
+    }
+    config['Directories'] = {
+        'utilities': utilities_dir,
+        'output': output_dir,
+        'mymodfiles': mymodfiles_dir,
+        'definitions': definitions_dir
+    }
+    config['Appearance'] = {
+        'color_scheme': color_scheme
+    }
+
+    # Create directories if they don't exist
+    Path(utilities_dir).mkdir(parents=True, exist_ok=True)
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    Path(mymodfiles_dir).mkdir(parents=True, exist_ok=True)
+    Path(definitions_dir).mkdir(parents=True, exist_ok=True)
+
+    config_path = get_config_path()
+    with open(config_path, 'w') as f:
+        config.write(f)
+
+
+def get_game_install_path() -> str | None:
+    """Get the game install path from config, or None if not configured."""
+    config = load_config()
+    if config.has_option('Game', 'install_path'):
+        return config.get('Game', 'install_path')
+    return None
+
+
+def get_utilities_dir() -> Path:
+    """Get the utilities directory from config, or default."""
+    config = load_config()
+    if config.has_option('Directories', 'utilities'):
+        return Path(config.get('Directories', 'utilities'))
+    return get_default_utilities_dir()
+
+
+def get_output_dir() -> Path:
+    """Get the output directory from config, or default."""
+    config = load_config()
+    if config.has_option('Directories', 'output'):
+        return Path(config.get('Directories', 'output'))
+    return get_default_output_dir()
+
+
+def get_mymodfiles_dir() -> Path:
+    """Get the My MOD Files directory from config, or default."""
+    config = load_config()
+    if config.has_option('Directories', 'mymodfiles'):
+        return Path(config.get('Directories', 'mymodfiles'))
+    return get_default_mymodfiles_dir()
+
+
+def get_definitions_dir() -> Path:
+    """Get the MOD Definitions directory from config, or default."""
+    config = load_config()
+    if config.has_option('Directories', 'definitions'):
+        return Path(config.get('Directories', 'definitions'))
+    return get_default_definitions_dir()
+
+
+def get_color_scheme() -> str:
+    """Get the color scheme from config, or default."""
+    config = load_config()
+    if config.has_option('Appearance', 'color_scheme'):
+        return config.get('Appearance', 'color_scheme')
+    return DEFAULT_COLOR_SCHEME
+
+
+def apply_color_scheme(scheme: str) -> None:
+    """Apply the color scheme to CustomTkinter.
+
+    Args:
+        scheme: The color scheme to apply.
+    """
+    import customtkinter as ctk
+
+    if scheme == "Light Mode":
+        ctk.set_appearance_mode("light")
+    elif scheme == "Dark Mode":
+        ctk.set_appearance_mode("dark")
+    else:  # Match Windows Theme
+        ctk.set_appearance_mode("system")
+
+
+# Known game installation paths
+STEAM_PATH = r"C:\Program Files (x86)\Steam\steamapps\common\The Lord of the Rings Return to Moria™"
+EPIC_PATH = r"C:\Program Files\Epic Games\ReturnToMoria\Moria\Content\Paks"
+
+
+def check_steam_path() -> bool:
+    """Check if the Steam installation path exists."""
+    return Path(STEAM_PATH).exists()
+
+
+def check_epic_path() -> bool:
+    """Check if the Epic Games installation path exists."""
+    return Path(EPIC_PATH).exists()
+
+
+def get_available_install_options() -> list[tuple[str, str]]:
+    """Get a list of available installation options.
+
+    Returns:
+        List of tuples (display_name, path) for available options.
+        Always includes Custom as the last option.
+    """
+    options = []
+
+    if check_steam_path():
+        options.append(("Steam", STEAM_PATH))
+
+    if check_epic_path():
+        options.append(("Epic Games", EPIC_PATH))
+
+    options.append(("Custom", ""))
+
+    return options
