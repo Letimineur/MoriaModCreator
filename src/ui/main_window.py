@@ -38,6 +38,9 @@ class MainWindow(ctk.CTk):
         self.title("Moria MOD Creator")
         self.geometry("1024x768")
         self.minsize(800, 600)
+        
+        # Start maximized/fullscreen
+        self.after(10, lambda: self.state('zoomed'))
 
         # Track definition checkboxes and their states
         self.definition_checkboxes: dict[Path, ctk.CTkCheckBox] = {}
@@ -226,6 +229,9 @@ class MainWindow(ctk.CTk):
 
     def _create_definitions_pane(self, parent):
         """Create the definitions file list pane."""
+        # Track current directory for navigation
+        self.current_definitions_dir = None
+        
         # Definitions frame with border
         definitions_frame = ctk.CTkFrame(parent)
         definitions_frame.grid(row=0, column=0, sticky="nsew")
@@ -264,8 +270,12 @@ class MainWindow(ctk.CTk):
         # Load definitions files
         self._refresh_definitions_list()
 
-    def _refresh_definitions_list(self):
-        """Refresh the list of definition files."""
+    def _refresh_definitions_list(self, target_dir: Path = None):
+        """Refresh the list of definition files and directories.
+        
+        Args:
+            target_dir: Directory to display. If None, uses root definitions dir.
+        """
         # Clear existing items
         for widget in self.definitions_list.winfo_children():
             widget.destroy()
@@ -275,9 +285,15 @@ class MainWindow(ctk.CTk):
         self.definition_vars.clear()
 
         # Get definitions directory
-        definitions_dir = get_definitions_dir()
+        root_dir = get_definitions_dir()
+        
+        if target_dir is None:
+            target_dir = root_dir
+        
+        # Store current directory
+        self.current_definitions_dir = target_dir
 
-        if not definitions_dir.exists():
+        if not target_dir.exists():
             no_files_label = ctk.CTkLabel(
                 self.definitions_list,
                 text="No definitions directory found",
@@ -286,18 +302,50 @@ class MainWindow(ctk.CTk):
             no_files_label.pack(pady=10)
             return
 
-        # List .def files in definitions directory
-        def_files = sorted([f for f in definitions_dir.iterdir()
+        # Add ".." back navigation if not at root
+        if target_dir != root_dir:
+            back_frame = ctk.CTkFrame(self.definitions_list, fg_color="transparent")
+            back_frame.pack(fill="x", pady=2, anchor="w")
+            
+            back_label = ctk.CTkLabel(
+                back_frame,
+                text="📁 ..",
+                anchor="w",
+                cursor="hand2",
+                font=ctk.CTkFont(size=14)
+            )
+            back_label.pack(side="left", fill="x", expand=True, padx=(5, 0))
+            back_label.bind("<Button-1>", lambda e: self._refresh_definitions_list(target_dir.parent))
+
+        # List directories first, then .def files
+        dirs = sorted([d for d in target_dir.iterdir() if d.is_dir()])
+        def_files = sorted([f for f in target_dir.iterdir()
                            if f.is_file() and f.suffix.lower() == '.def'])
 
-        if not def_files:
+        if not dirs and not def_files:
             no_files_label = ctk.CTkLabel(
                 self.definitions_list,
-                text="No definition files",
+                text="No items found",
                 text_color="gray"
             )
             no_files_label.pack(pady=10)
             return
+
+        # Create entries for directories
+        for dir_path in dirs:
+            row_frame = ctk.CTkFrame(self.definitions_list, fg_color="transparent")
+            row_frame.pack(fill="x", pady=2, anchor="w")
+
+            # Folder icon and name (clickable)
+            dir_label = ctk.CTkLabel(
+                row_frame,
+                text=f"📁 {dir_path.name}",
+                anchor="w",
+                cursor="hand2",
+                font=ctk.CTkFont(size=14)
+            )
+            dir_label.pack(side="left", fill="x", expand=True, padx=(5, 0))
+            dir_label.bind("<Button-1>", lambda e, p=dir_path: self._refresh_definitions_list(p))
 
         # Create a checkbox for each .def file
         for file_path in def_files:
@@ -379,6 +427,27 @@ class MainWindow(ctk.CTk):
             desc_elem = root.find('description')
             if desc_elem is not None and desc_elem.text:
                 return desc_elem.text.strip()
+        except ET.ParseError:
+            pass
+        except Exception:
+            pass
+        return ""
+
+    def _get_definition_author(self, file_path: Path) -> str:
+        """Extract the author from a .def file.
+
+        Args:
+            file_path: Path to the .def file.
+
+        Returns:
+            The author value, or empty string if not found.
+        """
+        try:
+            tree = ET.parse(file_path)
+            root = tree.getroot()
+            author_elem = root.find('author')
+            if author_elem is not None and author_elem.text:
+                return author_elem.text.strip()
         except ET.ParseError:
             pass
         except Exception:
@@ -507,20 +576,98 @@ class MainWindow(ctk.CTk):
         except Exception:
             return {}
 
+    def _get_nested_property_value(self, data: list | dict, property_path: str) -> str:
+        """Get a property value using dot notation for nested traversal.
+
+        Args:
+            data: The data to search (list of properties or dict).
+            property_path: Dot-separated property path (e.g., "DurationMagnitude.ScalableFloatMagnitude.Value").
+
+        Returns:
+            The property value as a string, or empty string if not found.
+        """
+        if not data or not property_path:
+            return ''
+        
+        parts = property_path.split('.')
+        current = data
+        
+        for part in parts:
+            if isinstance(current, list):
+                # Search for property by Name in list
+                found = False
+                for item in current:
+                    if isinstance(item, dict) and item.get('Name') == part:
+                        # Check if this has a Value that is a list (nested struct)
+                        if 'Value' in item:
+                            current = item['Value']
+                            found = True
+                            break
+                if not found:
+                    return ''
+            elif isinstance(current, dict):
+                if part in current:
+                    current = current[part]
+                elif 'Value' in current:
+                    # Try to traverse into Value
+                    current = current['Value']
+                    # Then look for the part
+                    if isinstance(current, list):
+                        found = False
+                        for item in current:
+                            if isinstance(item, dict) and item.get('Name') == part:
+                                current = item.get('Value', item)
+                                found = True
+                                break
+                        if not found:
+                            return ''
+                    elif isinstance(current, dict) and part in current:
+                        current = current[part]
+                    else:
+                        return ''
+                else:
+                    return ''
+            else:
+                # Reached a leaf value
+                return ''
+        
+        # Extract final value
+        if isinstance(current, (str, int, float, bool)):
+            return str(current)
+        elif isinstance(current, dict) and 'Value' in current:
+            val = current['Value']
+            if isinstance(val, (str, int, float, bool)):
+                return str(val)
+        elif isinstance(current, list) and len(current) > 0:
+            # Could be a final value in an unexpected format
+            pass
+        
+        return ''
+
     def _get_item_property_value(self, item_data: dict, property_name: str) -> str:
         """Get a property value from an item's data.
 
         Args:
             item_data: The item's Value array from the JSON.
-            property_name: The property name to find.
+            property_name: The property name to find (supports dot notation for nested properties).
 
         Returns:
             The property value as a string, or empty string if not found.
         """
-        if not item_data or 'Value' not in item_data:
+        if not item_data:
             return ''
         
-        for prop in item_data.get('Value', []):
+        # Get the Value array (for data table items)
+        value_array = item_data.get('Value', [])
+        if not value_array:
+            return ''
+        
+        # Check if property uses dot notation (nested path)
+        if '.' in property_name:
+            return self._get_nested_property_value(value_array, property_name)
+        
+        # Simple property lookup
+        for prop in value_array:
             if prop.get('Name') == property_name:
                 # Handle different property types
                 if 'Value' in prop:
@@ -596,18 +743,33 @@ class MainWindow(ctk.CTk):
             changes_lookup[item_name][change['property']] = change['value']
         
         # Get all items from the game data
+        # Try data table format first (Exports[0].Table.Data)
+        items = None
+        is_data_table = False
         try:
             items = game_data['Exports'][0]['Table']['Data']
-        except (KeyError, IndexError):
-            return display_data
+            is_data_table = True
+        except (KeyError, IndexError, TypeError):
+            pass
+        
+        # If not a data table, try single asset format (Exports with Data array)
+        if not is_data_table:
+            return self._build_display_data_single_asset(game_data, changes_lookup)
         
         # Cache for string tables to avoid reloading
         string_tables = {}
         
         # Collect all properties being modified by the XML to know which to display
         all_properties = set()
+        none_defaults = {}  # Store property -> value from NONE entries
         for item_changes in changes_lookup.values():
             all_properties.update(item_changes.keys())
+        
+        # Check for NONE entries - these define properties/values but no items selected
+        if 'NONE' in changes_lookup:
+            none_defaults = changes_lookup['NONE']
+            # Remove NONE from lookup so it doesn't match any real items
+            del changes_lookup['NONE']
         
         # For each item, show the properties (with XML changes where applicable)
         for item in items:
@@ -626,6 +788,9 @@ class MainWindow(ctk.CTk):
                 has_mod = item_name in changes_lookup and prop_name in changes_lookup[item_name]
                 if has_mod:
                     new_value = changes_lookup[item_name][prop_name]
+                elif prop_name in none_defaults:
+                    # Use NONE default value but don't check the item
+                    new_value = none_defaults[prop_name]
                 else:
                     # No XML modification - new equals current value
                     new_value = current_value
@@ -642,6 +807,89 @@ class MainWindow(ctk.CTk):
         # Sort by name
         return sorted(display_data, key=lambda x: x['name'].lower())
 
+    def _build_display_data_single_asset(self, game_data: dict, changes_lookup: dict) -> list[dict]:
+        """Build display data for single asset files (non-data-table).
+
+        Args:
+            game_data: The parsed JSON game data.
+            changes_lookup: Dictionary of {item_name: {property: new_value}}.
+
+        Returns:
+            List of dictionaries with name, property, value, new_value keys.
+        """
+        display_data = []
+        
+        # Check for NONE entries - these define properties/values for all exports
+        none_defaults = {}
+        if 'NONE' in changes_lookup:
+            none_defaults = changes_lookup['NONE']
+            # Remove NONE from lookup so it doesn't try to match as item name
+            changes_lookup = {k: v for k, v in changes_lookup.items() if k != 'NONE'}
+        
+        # Collect all properties being modified by the XML
+        all_properties = set()
+        for item_changes in changes_lookup.values():
+            all_properties.update(item_changes.keys())
+        all_properties.update(none_defaults.keys())
+        
+        # Find exports with Data arrays (skip class exports)
+        for export in game_data.get('Exports', []):
+            if 'Data' not in export or not isinstance(export.get('Data'), list):
+                continue
+            if len(export.get('Data', [])) == 0:
+                continue
+            
+            # Get the item name from ObjectName
+            item_name = export.get('ObjectName', '')
+            
+            # Skip class definition exports (non-Default__ exports that are just class defs)
+            # Focus on Default__ exports which contain actual property values
+            # But also check if there's a direct match in changes_lookup
+            
+            # Check for direct match in changes_lookup
+            has_direct_match = False
+            for lookup_item_name in changes_lookup:
+                if lookup_item_name == item_name or lookup_item_name in item_name:
+                    has_direct_match = True
+                    break
+            
+            # For each property we're tracking, try to get the value from this export
+            for prop_name in all_properties:
+                # Get current value using nested property lookup
+                current_value = self._get_nested_property_value(export['Data'], prop_name)
+                
+                if not current_value:
+                    continue
+                
+                # Check if there's a specific item match in changes_lookup
+                has_mod = False
+                new_value = current_value
+                row_name = item_name
+                
+                for lookup_item_name, properties in changes_lookup.items():
+                    if lookup_item_name == item_name or lookup_item_name in item_name:
+                        if prop_name in properties:
+                            has_mod = True
+                            new_value = properties[prop_name]
+                            row_name = lookup_item_name
+                            break
+                
+                # If no specific match but NONE defaults exist for this property
+                if not has_mod and prop_name in none_defaults:
+                    new_value = none_defaults[prop_name]
+                    # Keep row_name as item_name (the actual export name) for saving
+                
+                display_data.append({
+                    'row_name': row_name,  # Always use actual item name for XML saving
+                    'name': item_name,
+                    'property': prop_name,
+                    'value': current_value,
+                    'new_value': new_value,
+                    'has_mod': has_mod
+                })
+        
+        return display_data
+
     def _show_definition_details(self, file_path: Path):
         """Show the definition details in the right pane.
 
@@ -656,6 +904,8 @@ class MainWindow(ctk.CTk):
             widget.destroy()
 
         # Get description and build display data from game files
+        title = self._get_definition_title(file_path)
+        author = self._get_definition_author(file_path)
         description = self._get_definition_description(file_path)
         display_data = self._build_display_data(file_path)
 
@@ -663,15 +913,32 @@ class MainWindow(ctk.CTk):
         details_frame = ctk.CTkFrame(self.main_content)
         details_frame.pack(fill="both", expand=True)
 
-        # Title bar with description
-        title_text = description if description else file_path.stem
-        title_label = ctk.CTkLabel(
-            details_frame,
-            text=title_text,
-            font=ctk.CTkFont(size=16, weight="bold"),
-            wraplength=500
-        )
-        title_label.pack(pady=(10, 5), padx=10, anchor="w")
+        # Header section with Title, Author, Description
+        header_info_frame = ctk.CTkFrame(details_frame, fg_color="transparent")
+        header_info_frame.pack(fill="x", padx=10, pady=(10, 5))
+        
+        label_font = ctk.CTkFont(size=14, weight="bold")
+        value_font = ctk.CTkFont(size=14)
+        
+        # Title row
+        title_row = ctk.CTkFrame(header_info_frame, fg_color="transparent")
+        title_row.pack(fill="x", anchor="w")
+        ctk.CTkLabel(title_row, text="TITLE:", font=label_font, width=100, anchor="w").pack(side="left")
+        ctk.CTkLabel(title_row, text=title if title else file_path.stem, font=value_font, anchor="w").pack(side="left", fill="x", expand=True)
+        
+        # Author row (only if author exists)
+        if author:
+            author_row = ctk.CTkFrame(header_info_frame, fg_color="transparent")
+            author_row.pack(fill="x", anchor="w")
+            ctk.CTkLabel(author_row, text="AUTHOR:", font=label_font, width=100, anchor="w").pack(side="left")
+            ctk.CTkLabel(author_row, text=author, font=value_font, anchor="w").pack(side="left", fill="x", expand=True)
+        
+        # Description row
+        if description:
+            desc_row = ctk.CTkFrame(header_info_frame, fg_color="transparent")
+            desc_row.pack(fill="x", anchor="w")
+            ctk.CTkLabel(desc_row, text="DESCRIPTION:", font=label_font, width=100, anchor="w").pack(side="left")
+            ctk.CTkLabel(desc_row, text=description, font=value_font, anchor="w").pack(side="left", fill="x", expand=True)
 
         # Table header
         header_frame = ctk.CTkFrame(details_frame, fg_color="transparent")
@@ -679,8 +946,8 @@ class MainWindow(ctk.CTk):
 
         # Configure columns with weights for alignment (checkbox, name, property, value, new)
         header_frame.grid_columnconfigure(0, weight=0, minsize=30)  # Checkbox column
-        header_frame.grid_columnconfigure(1, weight=2, uniform="col")
-        header_frame.grid_columnconfigure(2, weight=1, uniform="col")
+        header_frame.grid_columnconfigure(1, weight=3, uniform="col")  # Name - larger
+        header_frame.grid_columnconfigure(2, weight=2, uniform="col")  # Property - moved towards Name
         header_frame.grid_columnconfigure(3, weight=1, uniform="col")
         header_frame.grid_columnconfigure(4, weight=1, uniform="col")
 
@@ -717,8 +984,8 @@ class MainWindow(ctk.CTk):
 
         # Configure columns for changes with weights for alignment
         changes_frame.grid_columnconfigure(0, weight=0, minsize=30)  # Checkbox column
-        changes_frame.grid_columnconfigure(1, weight=2, uniform="col")
-        changes_frame.grid_columnconfigure(2, weight=1, uniform="col")
+        changes_frame.grid_columnconfigure(1, weight=3, uniform="col")  # Name - larger
+        changes_frame.grid_columnconfigure(2, weight=2, uniform="col")  # Property - moved towards Name
         changes_frame.grid_columnconfigure(3, weight=1, uniform="col")
         changes_frame.grid_columnconfigure(4, weight=1, uniform="col")
 
@@ -876,11 +1143,18 @@ class MainWindow(ctk.CTk):
             
             # Add new <change> elements for checked rows
             changes_added = 0
+            properties_used = {}  # Track property -> value for NONE fallback
+            
             for i, checkbox_var in enumerate(self.row_checkbox_vars):
+                prop_name = self.row_properties[i]
+                new_value = self.row_entry_vars[i].get()
+                
+                # Track the first value seen for each property (for NONE fallback)
+                if prop_name not in properties_used:
+                    properties_used[prop_name] = new_value
+                
                 if checkbox_var.get():  # Only add if checked
-                    new_value = self.row_entry_vars[i].get()
                     row_name = self.row_names[i]
-                    prop_name = self.row_properties[i]
                     
                     change_elem = ET.SubElement(mod_element, 'change')
                     change_elem.set('item', row_name)
@@ -888,13 +1162,24 @@ class MainWindow(ctk.CTk):
                     change_elem.set('value', new_value)
                     changes_added += 1
             
+            # If no items were checked, save NONE entries to preserve property/value
+            if changes_added == 0 and properties_used:
+                for prop_name, value in properties_used.items():
+                    change_elem = ET.SubElement(mod_element, 'change')
+                    change_elem.set('item', 'NONE')
+                    change_elem.set('property', prop_name)
+                    change_elem.set('value', value)
+            
             # Format the XML with proper indentation
             self._indent_xml(root)
             
             # Write back to file
             tree.write(file_path, encoding='UTF-8', xml_declaration=True)
             
-            self.set_status_message(f"Saved {changes_added} changes to {file_path.name}")
+            if changes_added == 0 and properties_used:
+                self.set_status_message(f"Saved template (no items selected) to {file_path.name}")
+            else:
+                self.set_status_message(f"Saved {changes_added} changes to {file_path.name}")
             
         except Exception as e:
             self.set_status_message(f"Error saving: {e}", is_error=True)
