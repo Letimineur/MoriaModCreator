@@ -1,17 +1,21 @@
 """Main application window for Moria MOD Creator."""
 
+import configparser
 import json
+import shutil
 import subprocess
 import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 from PIL import Image
 import customtkinter as ctk
 
-from src.config import get_utilities_dir, get_definitions_dir, get_output_dir
+from src.config import get_utilities_dir, get_definitions_dir, get_output_dir, get_default_mymodfiles_dir
 from src.ui.about_dialog import show_about_dialog
 from src.ui.utility_check_dialog import find_utility
 from src.ui.import_dialog import show_import_dialog
 from src.ui.json_convert_dialog import show_json_convert_dialog
+from src.ui.mod_name_dialog import show_mod_name_dialog
 
 
 # Icon sizes
@@ -45,6 +49,13 @@ class MainWindow(ctk.CTk):
         # Track definition checkboxes and their states
         self.definition_checkboxes: dict[Path, ctk.CTkCheckBox] = {}
         self.definition_vars: dict[Path, ctk.BooleanVar] = {}
+        
+        # Track left pane header checkbox state
+        self.left_select_all_state = "none"  # none, mixed, all
+        self.left_select_all_btn = None
+        
+        # Load saved checkbox states from INI
+        self._load_checkbox_states()
 
         # Track row checkboxes and entries for the right pane
         self.row_checkboxes: list[ctk.CTkCheckBox] = []
@@ -111,7 +122,7 @@ class MainWindow(ctk.CTk):
         )
         title_label.pack(side="left")
 
-        # CENTER: Import, Convert, UAssetGUI and FModel buttons
+        # CENTER: Import and Convert buttons
         center_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
         center_frame.grid(row=0, column=1)
 
@@ -127,20 +138,6 @@ class MainWindow(ctk.CTk):
             "json_icon.png",
             "Convert to JSON",
             self._run_json_convert
-        )
-
-        self._create_toolbar_button(
-            center_frame,
-            "uasset_icon.png",
-            "UAssetGUI",
-            self._launch_uassetgui
-        )
-
-        self._create_toolbar_button(
-            center_frame,
-            "fmodel_icon.png",
-            "FModel",
-            self._launch_fmodel
         )
 
         # RIGHT: Settings and Help buttons
@@ -236,20 +233,35 @@ class MainWindow(ctk.CTk):
         definitions_frame = ctk.CTkFrame(parent)
         definitions_frame.grid(row=0, column=0, sticky="nsew")
 
-        # Title row with label and refresh button
-        title_row = ctk.CTkFrame(definitions_frame, fg_color="transparent")
-        title_row.pack(fill="x", pady=(10, 5), padx=10)
-
+        # Header row with tri-state checkbox and "Mod Definition" title
+        header_row = ctk.CTkFrame(definitions_frame, fg_color="transparent")
+        header_row.pack(fill="x", pady=(10, 5), padx=10)
+        
+        # Tri-state checkbox button for select all
+        self.left_select_all_btn = ctk.CTkButton(
+            header_row,
+            text="☐",
+            width=24,
+            height=24,
+            fg_color="transparent",
+            hover_color=("gray75", "gray25"),
+            text_color=("gray10", "gray90"),
+            font=ctk.CTkFont(size=16),
+            command=self._on_left_select_all_toggle
+        )
+        self.left_select_all_btn.pack(side="left")
+        
+        # Title
         title_label = ctk.CTkLabel(
-            title_row,
-            text="Definitions Files",
+            header_row,
+            text="Mod Definition",
             font=ctk.CTkFont(size=14, weight="bold")
         )
-        title_label.pack(side="left")
+        title_label.pack(side="left", padx=(5, 0))
 
         # Refresh button
         refresh_btn = ctk.CTkButton(
-            title_row,
+            header_row,
             text="↻",
             width=28,
             height=28,
@@ -266,6 +278,50 @@ class MainWindow(ctk.CTk):
             fg_color="transparent"
         )
         self.definitions_list.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+        # Bottom section with mod name and build button
+        bottom_frame = ctk.CTkFrame(definitions_frame, fg_color="transparent")
+        bottom_frame.pack(fill="x", padx=10, pady=(0, 10))
+        
+        # Left side: "My Mod Name" button and text field
+        left_bottom = ctk.CTkFrame(bottom_frame, fg_color="transparent")
+        left_bottom.pack(side="left", fill="x", expand=True)
+        
+        mod_name_btn = ctk.CTkButton(
+            left_bottom,
+            text="My Mod Name",
+            fg_color="#2196F3",  # Blue
+            hover_color="#1976D2",
+            text_color="white",
+            font=ctk.CTkFont(weight="bold"),
+            width=120,
+            command=self._on_mod_name_click
+        )
+        mod_name_btn.pack(side="left")
+        
+        # Text field for mod name (read-only display)
+        self.mod_name_var = ctk.StringVar(value="")
+        self.mod_name_entry = ctk.CTkEntry(
+            left_bottom,
+            textvariable=self.mod_name_var,
+            width=120,
+            placeholder_text="No mod selected...",
+            state="disabled"
+        )
+        self.mod_name_entry.pack(side="left", padx=(10, 0), fill="x", expand=True)
+        
+        # Right side: "Build" button
+        build_btn = ctk.CTkButton(
+            bottom_frame,
+            text="Build",
+            fg_color="#4CAF50",  # Green
+            hover_color="#388E3C",
+            text_color="white",
+            font=ctk.CTkFont(weight="bold"),
+            width=80,
+            command=self._on_build_click
+        )
+        build_btn.pack(side="right")
 
         # Load definitions files
         self._refresh_definitions_list()
@@ -312,9 +368,10 @@ class MainWindow(ctk.CTk):
                 text="📁 ..",
                 anchor="w",
                 cursor="hand2",
-                font=ctk.CTkFont(size=14)
+                font=ctk.CTkFont(size=18),
+                text_color="#FFD700"
             )
-            back_label.pack(side="left", fill="x", expand=True, padx=(5, 0))
+            back_label.pack(side="left", fill="x", expand=True, padx=(25, 0))
             back_label.bind("<Button-1>", lambda e: self._refresh_definitions_list(target_dir.parent))
 
         # List directories first, then .def files
@@ -331,20 +388,41 @@ class MainWindow(ctk.CTk):
             no_files_label.pack(pady=10)
             return
 
-        # Create entries for directories
+        # Create entries for directories with checkboxes
         for dir_path in dirs:
             row_frame = ctk.CTkFrame(self.definitions_list, fg_color="transparent")
             row_frame.pack(fill="x", pady=2, anchor="w")
+            
+            # Check if directory should be checked (from saved state)
+            saved_state = self._get_saved_checkbox_state(dir_path)
+            
+            # Create BooleanVar for checkbox state
+            var = ctk.BooleanVar(value=saved_state)
+            self.definition_vars[dir_path] = var
+            
+            # Create checkbox for directory
+            checkbox = ctk.CTkCheckBox(
+                row_frame,
+                text="",
+                variable=var,
+                onvalue=True,
+                offvalue=False,
+                width=20,
+                command=lambda p=dir_path: self._on_directory_checkbox_toggle(p)
+            )
+            checkbox.pack(side="left")
+            self.definition_checkboxes[dir_path] = checkbox
 
-            # Folder icon and name (clickable)
+            # Folder icon and name (clickable for navigation)
             dir_label = ctk.CTkLabel(
                 row_frame,
                 text=f"📁 {dir_path.name}",
                 anchor="w",
                 cursor="hand2",
-                font=ctk.CTkFont(size=14)
+                font=ctk.CTkFont(size=18),
+                text_color="#FFD700"
             )
-            dir_label.pack(side="left", fill="x", expand=True, padx=(5, 0))
+            dir_label.pack(side="left", fill="x", expand=True)
             dir_label.bind("<Button-1>", lambda e, p=dir_path: self._refresh_definitions_list(p))
 
         # Create a checkbox for each .def file
@@ -355,8 +433,11 @@ class MainWindow(ctk.CTk):
             row_frame = ctk.CTkFrame(self.definitions_list, fg_color="transparent")
             row_frame.pack(fill="x", pady=2, anchor="w")
 
+            # Check if file should be checked (from saved state)
+            saved_state = self._get_saved_checkbox_state(file_path)
+            
             # Create BooleanVar for checkbox state
-            var = ctk.BooleanVar(value=False)
+            var = ctk.BooleanVar(value=saved_state)
             self.definition_vars[file_path] = var
 
             # Create checkbox (no text)
@@ -366,7 +447,8 @@ class MainWindow(ctk.CTk):
                 variable=var,
                 onvalue=True,
                 offvalue=False,
-                width=20
+                width=20,
+                command=lambda p=file_path: self._on_definition_checkbox_toggle(p)
             )
             checkbox.pack(side="left")
             self.definition_checkboxes[file_path] = checkbox
@@ -381,6 +463,200 @@ class MainWindow(ctk.CTk):
             title_label.pack(side="left", fill="x", expand=True)
             # Bind click to show details pane
             title_label.bind("<Button-1>", lambda e, p=file_path: self._show_definition_details(p))
+        
+        # Update header checkbox state
+        self._update_left_select_all_state()
+
+    def _get_checkbox_ini_path(self) -> Path:
+        """Get the path to the checkbox states INI file.
+        
+        If a mod name is set, uses the mod's directory.
+        Otherwise uses the default mymodfiles directory.
+        """
+        mymodfiles_dir = get_default_mymodfiles_dir()
+        
+        # If we have a current mod name, use its directory
+        if hasattr(self, '_current_mod_name') and self._current_mod_name:
+            mod_dir = mymodfiles_dir / self._current_mod_name
+            mod_dir.mkdir(parents=True, exist_ok=True)
+            return mod_dir / "checkbox_states.ini"
+        
+        # Fallback to default location
+        mymodfiles_dir.mkdir(parents=True, exist_ok=True)
+        return mymodfiles_dir / "checkbox_states.ini"
+
+    def _load_checkbox_states(self):
+        """Load checkbox states from the INI file."""
+        # Clear existing checkbox states
+        self._checkbox_states = {}
+        
+        # Clear all checkboxes in the current view
+        for var in self.definition_vars.values():
+            var.set(False)
+        
+        # Only load if a mod is selected
+        if not hasattr(self, '_current_mod_name') or not self._current_mod_name:
+            return
+            
+        ini_path = self._get_checkbox_ini_path()
+        if ini_path.exists():
+            config = configparser.ConfigParser()
+            config.optionxform = str  # Preserve case
+            try:
+                config.read(ini_path, encoding='utf-8')
+                if 'Paths' in config:
+                    for key, value in config['Paths'].items():
+                        if value.lower() == 'true':
+                            # Reconstruct path from key (replace | with \ and ~ with :)
+                            path_str = key.replace('|', '\\').replace('~', ':')
+                            self._checkbox_states[path_str] = True
+            except Exception as e:
+                print(f"Error loading checkbox states: {e}")
+
+    def _save_checkbox_states(self):
+        """Save checkbox states to the INI file."""
+        # Don't save if no mod is selected
+        if not hasattr(self, '_current_mod_name') or not self._current_mod_name:
+            return
+            
+        ini_path = self._get_checkbox_ini_path()
+        config = configparser.ConfigParser()
+        config.optionxform = str  # Preserve case
+        config['Paths'] = {}
+        
+        # First, update _checkbox_states with current UI state
+        for path, var in self.definition_vars.items():
+            self._checkbox_states[str(path)] = var.get()
+        
+        # Save all checkbox states
+        for path_str, is_checked in self._checkbox_states.items():
+            if is_checked:
+                # Convert path to key (replace \ with | and : with ~ to avoid configparser issues)
+                path_key = path_str.replace('\\', '|').replace('/', '|').replace(':', '~')
+                config['Paths'][path_key] = 'true'
+        
+        try:
+            with open(ini_path, 'w', encoding='utf-8') as f:
+                config.write(f)
+        except Exception as e:
+            print(f"Error saving checkbox states: {e}")
+
+    def _get_saved_checkbox_state(self, path: Path) -> bool:
+        """Get the saved checkbox state for a path.
+        
+        Args:
+            path: Path to check.
+            
+        Returns:
+            True if the item was checked, False otherwise.
+        """
+        if not hasattr(self, '_checkbox_states'):
+            return False
+        
+        # Check for exact match first
+        path_str = str(path)
+        if path_str in self._checkbox_states:
+            return self._checkbox_states[path_str]
+        
+        # Case-insensitive fallback for Windows paths
+        path_lower = path_str.lower()
+        for saved_path, is_checked in self._checkbox_states.items():
+            if saved_path.lower() == path_lower:
+                return is_checked
+        
+        return False
+
+    def _on_left_select_all_toggle(self):
+        """Handle left pane header checkbox toggle."""
+        if self.left_select_all_state == "all":
+            # Uncheck all
+            for var in self.definition_vars.values():
+                var.set(False)
+        else:
+            # Check all
+            for var in self.definition_vars.values():
+                var.set(True)
+        
+        # Update button state
+        self._update_left_select_all_state()
+        
+        # Save states
+        self._save_checkbox_states()
+
+    def _update_left_select_all_state(self):
+        """Update the left pane header checkbox to reflect the state of row checkboxes."""
+        if not self.definition_vars or self.left_select_all_btn is None:
+            return
+        
+        checked_count = sum(1 for var in self.definition_vars.values() if var.get())
+        total_count = len(self.definition_vars)
+        
+        if checked_count == 0:
+            # None checked - show empty box
+            self.left_select_all_state = "none"
+            self.left_select_all_btn.configure(text="☐")
+        elif checked_count == total_count:
+            # All checked - show checked box
+            self.left_select_all_state = "all"
+            self.left_select_all_btn.configure(text="☑")
+        else:
+            # Mixed state - show box with dash
+            self.left_select_all_state = "mixed"
+            self.left_select_all_btn.configure(text="▣")
+
+    def _on_directory_checkbox_toggle(self, dir_path: Path):
+        """Handle directory checkbox toggle - check/uncheck all items under the directory.
+        
+        Args:
+            dir_path: Path to the directory that was toggled.
+        """
+        is_checked = self.definition_vars[dir_path].get()
+        
+        # Update all items under this directory recursively
+        self._set_directory_items_checked(dir_path, is_checked)
+        
+        # Update header state
+        self._update_left_select_all_state()
+        
+        # Save states
+        self._save_checkbox_states()
+
+    def _set_directory_items_checked(self, dir_path: Path, checked: bool):
+        """Recursively set all items under a directory to checked/unchecked.
+        
+        Args:
+            dir_path: Directory path.
+            checked: Whether to check or uncheck items.
+        """
+        if not dir_path.exists():
+            return
+        
+        for item in dir_path.iterdir():
+            # Update the saved state
+            self._checkbox_states[str(item)] = checked
+            
+            # If item is in current view, update its checkbox
+            if item in self.definition_vars:
+                self.definition_vars[item].set(checked)
+            
+            # Recurse into subdirectories
+            if item.is_dir():
+                self._set_directory_items_checked(item, checked)
+
+    def _on_definition_checkbox_toggle(self, file_path: Path):
+        """Handle definition file checkbox toggle.
+        
+        Args:
+            file_path: Path to the file that was toggled.
+        """
+        # Update saved state
+        self._checkbox_states[str(file_path)] = self.definition_vars[file_path].get()
+        
+        # Update header state
+        self._update_left_select_all_state()
+        
+        # Save states
+        self._save_checkbox_states()
 
     def _get_definition_title(self, file_path: Path) -> str:
         """Extract the title from a .def file.
@@ -411,6 +687,31 @@ class MainWindow(ctk.CTk):
             List of paths to checked definition files.
         """
         return [path for path, var in self.definition_vars.items() if var.get()]
+
+    def _get_all_selected_definitions_from_ini(self) -> list[Path]:
+        """Get all selected definition files from the checkbox_states.ini file.
+        
+        This reads from the saved INI file rather than the current UI state,
+        so it includes selections from all subdirectories, not just the
+        currently visible ones.
+        
+        Returns:
+            List of paths to all checked .def files.
+        """
+        selected = []
+        
+        # Make sure checkbox states are loaded
+        if not hasattr(self, '_checkbox_states') or not self._checkbox_states:
+            return selected
+        
+        for path_str, is_checked in self._checkbox_states.items():
+            if is_checked:
+                path = Path(path_str)
+                # Only include .def files (not directories)
+                if path.suffix.lower() == '.def' and path.exists():
+                    selected.append(path)
+        
+        return selected
 
     def _get_definition_description(self, file_path: Path) -> str:
         """Extract the description from a .def file.
@@ -1117,6 +1418,400 @@ class MainWindow(ctk.CTk):
             # Mixed state - show box with dash
             self.select_all_state = "mixed"
             self.select_all_btn.configure(text="▣")
+
+    def _on_build_click(self):
+        """Handle Build button click - build the mod from selected definitions."""
+        mod_name = self.mod_name_var.get().strip()
+        
+        if not mod_name:
+            self.set_status_message("Please enter a mod name", is_error=True)
+            return
+        
+        # Save current checkbox states first to ensure INI is up to date
+        self._save_checkbox_states()
+        
+        # Get selected definitions from INI file (includes all subdirectories)
+        selected = self._get_all_selected_definitions_from_ini()
+        
+        if not selected:
+            self.set_status_message("No definition files selected for build", is_error=True)
+            return
+        
+        try:
+            # Step 1: Process definition files and copy/modify JSON files
+            self.set_status_message(f"Building '{mod_name}': Processing definition files...")
+            self.update()  # Force UI update
+            
+            success_count, error_count = self._build_mod(mod_name, selected)
+            
+            if error_count > 0:
+                self.set_status_message(f"Build failed: {success_count} succeeded, {error_count} failed", is_error=True)
+                return
+            
+            if success_count == 0:
+                self.set_status_message("Build failed: No files were processed", is_error=True)
+                return
+            
+            # Step 2: Run retoc to convert JSON to zen format
+            self.set_status_message(f"Building '{mod_name}': Converting to game format...")
+            self.update()  # Force UI update
+            
+            retoc_success = self._run_retoc(mod_name)
+            
+            if not retoc_success:
+                self.set_status_message(f"Build failed: retoc conversion failed", is_error=True)
+                return
+            
+            # Step 3: Create zip file and move to Downloads
+            self.set_status_message(f"Building '{mod_name}': Creating mod package...")
+            self.update()  # Force UI update
+            
+            zip_path = self._create_mod_zip(mod_name)
+            
+            if zip_path:
+                self.set_status_message(f"Build complete! Mod saved to: {zip_path}")
+            else:
+                self.set_status_message(f"Build failed: Could not create zip file", is_error=True)
+                
+        except Exception as e:
+            self.set_status_message(f"Build failed: {e}", is_error=True)
+
+    def _create_mod_zip(self, mod_name: str) -> Path | None:
+        """Create a zip file of the mod and move to Downloads folder.
+        
+        Args:
+            mod_name: Name of the mod.
+            
+        Returns:
+            Path to the created zip file, or None if failed.
+        """
+        mymodfiles_base = get_default_mymodfiles_dir() / mod_name
+        final_dir = mymodfiles_base / 'finalmod'
+        
+        if not final_dir.exists():
+            print(f"finalmod directory not found: {final_dir}")
+            return None
+        
+        # Get Downloads folder
+        downloads_dir = Path.home() / 'Downloads'
+        if not downloads_dir.exists():
+            downloads_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create zip file path
+        zip_path = downloads_dir / f'{mod_name}.zip'
+        
+        try:
+            # Create the zip file
+            with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+                for file_path in final_dir.rglob('*'):
+                    if file_path.is_file():
+                        # Calculate relative path within the zip
+                        rel_path = file_path.relative_to(final_dir)
+                        zipf.write(file_path, rel_path)
+            
+            return zip_path
+            
+        except Exception as e:
+            print(f"Error creating zip file: {e}")
+            return None
+
+    def _run_retoc(self, mod_name: str) -> bool:
+        """Run conversion from JSON to zen format.
+        
+        Steps:
+        1. Convert JSON files to uasset using UAssetGUI fromjson
+        2. Convert uasset files to zen format using retoc to-zen
+        
+        Args:
+            mod_name: Name of the mod.
+            
+        Returns:
+            True if successful, False otherwise.
+        """
+        # Get paths
+        utilities_dir = get_utilities_dir()
+        uassetgui_path = utilities_dir / 'UAssetGUI.exe'
+        retoc_path = utilities_dir / 'retoc.exe'
+        
+        if not uassetgui_path.exists():
+            print(f"UAssetGUI.exe not found at {uassetgui_path}")
+            return False
+        
+        if not retoc_path.exists():
+            print(f"retoc.exe not found at {retoc_path}")
+            return False
+        
+        mymodfiles_base = get_default_mymodfiles_dir() / mod_name
+        json_dir = mymodfiles_base / 'jsonfiles'
+        uasset_dir = mymodfiles_base / 'uasset'
+        final_dir = mymodfiles_base / 'finalmod'
+        
+        # Create directories
+        uasset_dir.mkdir(parents=True, exist_ok=True)
+        final_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Step 1: Convert all JSON files to uasset
+        json_files = list(json_dir.rglob('*.json'))
+        if not json_files:
+            print("No JSON files found to convert")
+            return False
+        
+        for json_file in json_files:
+            # Calculate relative path and destination
+            rel_path = json_file.relative_to(json_dir)
+            uasset_file = uasset_dir / rel_path.with_suffix('.uasset')
+            
+            # Create destination directory
+            uasset_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Run UAssetGUI fromjson command
+            cmd = [
+                str(uassetgui_path),
+                'fromjson',
+                str(json_file),
+                str(uasset_file),
+                'VER_UE4_27'
+            ]
+            
+            try:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    timeout=60,
+                    creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0
+                )
+                
+                if result.returncode != 0 or not uasset_file.exists():
+                    print(f"Failed to convert {json_file.name}: {result.stderr}")
+                    return False
+                    
+            except Exception as e:
+                print(f"Error converting {json_file.name}: {e}")
+                return False
+        
+        # Step 2: Convert uasset files to zen format using retoc
+        # Output file is a .utoc file
+        output_utoc = final_dir / f'{mod_name}_P.utoc'
+        
+        cmd = [
+            str(retoc_path),
+            'to-zen',
+            '--version', 'UE4_27',
+            str(uasset_dir),
+            str(output_utoc)
+        ]
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                cwd=str(utilities_dir)
+            )
+            
+            if result.returncode != 0:
+                print(f"retoc failed with code {result.returncode}")
+                print(f"stdout: {result.stdout}")
+                print(f"stderr: {result.stderr}")
+                return False
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error running retoc: {e}")
+            return False
+
+    def _build_mod(self, mod_name: str, def_files: list[Path]) -> tuple[int, int]:
+        """Build the mod by processing all selected definition files.
+        
+        Args:
+            mod_name: Name of the mod.
+            def_files: List of definition file paths.
+            
+        Returns:
+            Tuple of (success_count, error_count).
+        """
+        success_count = 0
+        error_count = 0
+        
+        # Get directories
+        jsondata_dir = get_output_dir() / 'jsondata'
+        mymodfiles_dir = get_default_mymodfiles_dir() / mod_name / 'jsonfiles'
+        
+        for def_file in def_files:
+            try:
+                # Parse the .def file
+                tree = ET.parse(def_file)
+                root = tree.getroot()
+                
+                # Get the mod element
+                mod_element = root.find('mod')
+                if mod_element is None:
+                    print(f"No <mod> element in {def_file.name}")
+                    error_count += 1
+                    continue
+                
+                # Get the mod file path
+                mod_file_path = mod_element.get('file', '')
+                if not mod_file_path:
+                    print(f"No file attribute in <mod> element of {def_file.name}")
+                    error_count += 1
+                    continue
+                
+                # Normalize the path
+                normalized_path = mod_file_path.lstrip('\\').lstrip('/').replace('\\', '/')
+                
+                # Source file in jsondata
+                source_file = jsondata_dir / normalized_path
+                if not source_file.exists():
+                    print(f"Source file not found: {source_file}")
+                    error_count += 1
+                    continue
+                
+                # Destination file in mymodfiles
+                dest_file = mymodfiles_dir / normalized_path
+                
+                # Create destination directory
+                dest_file.parent.mkdir(parents=True, exist_ok=True)
+                
+                # Copy the file
+                shutil.copy2(source_file, dest_file)
+                
+                # Load the JSON data
+                with open(dest_file, 'r', encoding='utf-8') as f:
+                    json_data = json.load(f)
+                
+                # Get all change elements
+                changes = mod_element.findall('change')
+                
+                # Apply each change
+                for change in changes:
+                    item_name = change.get('item', '')
+                    property_path = change.get('property', '')
+                    new_value = change.get('value', '')
+                    
+                    # Skip NONE items (templates)
+                    if item_name == 'NONE':
+                        continue
+                    
+                    # Apply the change to the JSON data
+                    self._apply_json_change(json_data, item_name, property_path, new_value)
+                
+                # Save the modified JSON
+                with open(dest_file, 'w', encoding='utf-8') as f:
+                    json.dump(json_data, f, indent=2, ensure_ascii=False)
+                
+                success_count += 1
+                
+            except Exception as e:
+                print(f"Error processing {def_file.name}: {e}")
+                error_count += 1
+        
+        return success_count, error_count
+
+    def _apply_json_change(self, json_data: dict, item_name: str, property_path: str, new_value: str):
+        """Apply a change to the JSON data.
+        
+        Args:
+            json_data: The JSON data to modify.
+            item_name: The export name to find (e.g., "GE_MiningSong_CompleteBuff").
+            property_path: Dot-separated property path (e.g., "DurationMagnitude.ScalableFloatMagnitude.Value").
+            new_value: The new value to set.
+        """
+        if 'Exports' not in json_data:
+            return
+        
+        # Try multiple ObjectName variations - prefer Default__ versions first as they contain actual data
+        name_variations = [
+            f"Default__{item_name}_C",  # Default object with class suffix (most common for data)
+            f"Default__{item_name}",  # Default object prefix
+            item_name,
+            f"{item_name}_C",  # Blueprint class suffix
+        ]
+        
+        # Find the export with matching ObjectName AND has data
+        for name_variant in name_variations:
+            for export in json_data['Exports']:
+                obj_name = export.get('ObjectName', '')
+                if obj_name == name_variant:
+                    if 'Data' in export and isinstance(export['Data'], list) and len(export['Data']) > 0:
+                        self._set_nested_property_value(export['Data'], property_path, new_value)
+                        return
+
+    def _set_nested_property_value(self, data: list, property_path: str, new_value: str):
+        """Set a property value using dot notation for nested traversal.
+        
+        Args:
+            data: The data list to modify.
+            property_path: Dot-separated property path (e.g., "DurationMagnitude.ScalableFloatMagnitude.Value").
+            new_value: The new value to set.
+        """
+        if not data or not property_path:
+            return
+        
+        parts = property_path.split('.')
+        current = data
+        
+        # Traverse to the parent of the target property
+        for i, part in enumerate(parts[:-1]):
+            if isinstance(current, list):
+                # Search for property by Name in list
+                found = False
+                for item in current:
+                    if isinstance(item, dict) and item.get('Name') == part:
+                        if 'Value' in item:
+                            current = item['Value']
+                            found = True
+                            break
+                if not found:
+                    return
+            else:
+                return
+        
+        # Set the final property value
+        target_name = parts[-1]
+        if isinstance(current, list):
+            for item in current:
+                if isinstance(item, dict) and item.get('Name') == target_name:
+                    # Convert value to appropriate type
+                    if 'Value' in item:
+                        old_value = item['Value']
+                        if isinstance(old_value, float):
+                            try:
+                                item['Value'] = float(new_value)
+                            except ValueError:
+                                item['Value'] = new_value
+                        elif isinstance(old_value, int):
+                            try:
+                                item['Value'] = int(float(new_value))
+                            except ValueError:
+                                item['Value'] = new_value
+                        elif isinstance(old_value, bool):
+                            item['Value'] = new_value.lower() in ('true', '1', 'yes')
+                        else:
+                            item['Value'] = new_value
+                    return
+
+    def _on_mod_name_click(self):
+        """Handle My Mod Name button click - open dialog to set mod name."""
+        current_name = self.mod_name_var.get()
+        result = show_mod_name_dialog(self, current_name)
+        
+        if result:
+            # Update the mod name display
+            self.mod_name_var.set(result)
+            
+            # Store the current mod name for INI path
+            self._current_mod_name = result
+            
+            # Reload checkbox states from the new mod's directory
+            self._load_checkbox_states()
+            
+            # Refresh the definitions list to update checkbox states
+            self._refresh_definitions_list(self.current_definitions_dir)
+            
+            self.set_status_message(f"Mod '{result}' selected")
 
     def _on_save_click(self):
         """Handle Save button click - update the XML definition file."""
