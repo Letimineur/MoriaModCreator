@@ -45,6 +45,7 @@ class MainWindow(ctk.CTk):
         # Track definition checkboxes and their states
         self.definition_checkboxes: dict[Path, ctk.CTkCheckBox] = {}
         self.definition_vars: dict[Path, ctk.BooleanVar] = {}
+        self.definition_row_frames: dict[Path, ctk.CTkFrame] = {}
         
         # Track left pane header checkbox state
         self.left_select_all_state = "none"  # none, mixed, all
@@ -59,6 +60,7 @@ class MainWindow(ctk.CTk):
         self.row_entries: list[ctk.CTkEntry] = []
         self.row_entry_vars: list[ctk.StringVar] = []
         self.row_values: list[str] = []  # Original values for resetting
+        self.row_frames: list[ctk.CTkFrame] = []  # Row frames for highlighting
         
         # Initialize widget attributes (created in helper methods)
         self.content_frame = None
@@ -194,28 +196,11 @@ class MainWindow(ctk.CTk):
 
     def _create_status_bar(self):
         """Create the status bar at the bottom of the window."""
-        self.status_bar = ctk.CTkFrame(self.content_frame, height=70)
+        self.status_bar = ctk.CTkFrame(self.content_frame, height=50)
         self.status_bar.pack(fill="x", padx=10, pady=(0, 10))
         self.status_bar.pack_propagate(False)
 
-        # Top row - buttons aligned to right (under right pane)
-        button_frame = ctk.CTkFrame(self.status_bar, fg_color="transparent")
-        button_frame.pack(fill="x", padx=10, pady=(5, 0))
-
-        self.save_btn = ctk.CTkButton(
-            button_frame,
-            text="Save",
-            width=80,
-            height=32,
-            fg_color="#28a745",
-            hover_color="#218838",
-            text_color="white",
-            font=ctk.CTkFont(weight="bold"),
-            command=self._on_save_click
-        )
-        self.save_btn.pack(side="right", padx=(0, 10))
-
-        # Bottom row - status message
+        # Status message only - Save button moved to right pane
         self.status_message = ctk.CTkLabel(
             self.status_bar,
             text="",
@@ -223,6 +208,9 @@ class MainWindow(ctk.CTk):
             anchor="w"
         )
         self.status_message.pack(fill="x", padx=10, pady=(5, 5))
+        
+        # Initialize save_btn to None (will be created in right pane)
+        self.save_btn = None
 
     def set_status_message(self, message: str, is_error: bool = False):
         """Set the status bar message.
@@ -233,7 +221,7 @@ class MainWindow(ctk.CTk):
         """
         self.status_message.configure(
             text=message,
-            text_color="red" if is_error else ("gray70", "gray30")
+            text_color="red" if is_error else "#FFA500"
         )
 
     def clear_status_message(self):
@@ -253,16 +241,13 @@ class MainWindow(ctk.CTk):
         header_row = ctk.CTkFrame(definitions_frame, fg_color="transparent")
         header_row.pack(fill="x", pady=(10, 5), padx=10)
         
-        # Tri-state checkbox button for select all
-        self.left_select_all_btn = ctk.CTkButton(
+        # Tri-state checkbox for select all (uses color to indicate mixed state)
+        self.left_select_all_var = ctk.BooleanVar(value=False)
+        self.left_select_all_btn = ctk.CTkCheckBox(
             header_row,
-            text="☐",
-            width=24,
-            height=24,
-            fg_color="transparent",
-            hover_color=("gray75", "gray25"),
-            text_color=("gray10", "gray90"),
-            font=ctk.CTkFont(size=16),
+            text="",
+            variable=self.left_select_all_var,
+            width=20,
             command=self._on_left_select_all_toggle
         )
         self.left_select_all_btn.pack(side="left")
@@ -404,19 +389,17 @@ class MainWindow(ctk.CTk):
             no_files_label.pack(pady=10)
             return
 
-        # Create entries for directories with checkboxes
+        # Create entries for directories with tri-state checkboxes
         for dir_path in dirs:
             row_frame = ctk.CTkFrame(self.definitions_list, fg_color="transparent")
             row_frame.pack(fill="x", pady=2, anchor="w")
             
-            # Check if directory should be checked (from saved state)
-            saved_state = self._get_saved_checkbox_state(dir_path)
-            
             # Create BooleanVar for checkbox state
-            var = ctk.BooleanVar(value=saved_state)
+            var = ctk.BooleanVar(value=False)  # Will be updated by _update_directory_checkbox_display
             self.definition_vars[dir_path] = var
+            self.definition_row_frames[dir_path] = row_frame
             
-            # Create checkbox for directory
+            # Create checkbox for directory (will use color to indicate mixed state)
             checkbox = ctk.CTkCheckBox(
                 row_frame,
                 text="",
@@ -428,6 +411,12 @@ class MainWindow(ctk.CTk):
             )
             checkbox.pack(side="left")
             self.definition_checkboxes[dir_path] = checkbox
+            
+            # Update the checkbox display based on children's state
+            self._update_directory_checkbox_display(dir_path)
+            
+            # Apply initial highlight based on state
+            self._update_definition_row_highlight(dir_path)
 
             # Folder icon and name (clickable for navigation)
             dir_label = ctk.CTkLabel(
@@ -455,6 +444,7 @@ class MainWindow(ctk.CTk):
             # Create BooleanVar for checkbox state
             var = ctk.BooleanVar(value=saved_state)
             self.definition_vars[file_path] = var
+            self.definition_row_frames[file_path] = row_frame
 
             # Create checkbox (no text)
             checkbox = ctk.CTkCheckBox(
@@ -468,6 +458,9 @@ class MainWindow(ctk.CTk):
             )
             checkbox.pack(side="left")
             self.definition_checkboxes[file_path] = checkbox
+            
+            # Apply initial highlight if checked
+            self._update_definition_row_highlight(file_path)
 
             # Create clickable label for the title
             title_label = ctk.CTkLabel(
@@ -607,29 +600,121 @@ class MainWindow(ctk.CTk):
         checked_count = sum(1 for var in self.definition_vars.values() if var.get())
         total_count = len(self.definition_vars)
         
+        # Default checkbox color (from CustomTkinter theme)
+        default_color = ("#1f6aa5", "#1f6aa5")  # Blue
+        mixed_color = ("#FFA500", "#FFA500")  # Orange for mixed state
+        
         if checked_count == 0:
-            # None checked - show empty box
+            # None checked
             self.left_select_all_state = "none"
-            self.left_select_all_btn.configure(text="☐")
+            self.left_select_all_btn.deselect()
+            self.left_select_all_btn.configure(fg_color=default_color)
         elif checked_count == total_count:
-            # All checked - show checked box
+            # All checked
             self.left_select_all_state = "all"
-            self.left_select_all_btn.configure(text="☑")
+            self.left_select_all_btn.select()
+            self.left_select_all_btn.configure(fg_color=default_color)
         else:
-            # Mixed state - show box with dash
+            # Mixed state - checked with orange color
             self.left_select_all_state = "mixed"
-            self.left_select_all_btn.configure(text="▣")
+            self.left_select_all_btn.select()
+            self.left_select_all_btn.configure(fg_color=mixed_color)
+
+    def _get_directory_child_state(self, dir_path: Path) -> str:
+        """Calculate the tri-state checkbox state for a directory based on its children.
+        
+        Args:
+            dir_path: Path to the directory.
+            
+        Returns:
+            "none" if no children are checked,
+            "all" if all children are checked,
+            "mixed" if some children are checked.
+        """
+        if not dir_path.exists() or not dir_path.is_dir():
+            return "none"
+        
+        checked_count = 0
+        total_count = 0
+        
+        for item in dir_path.iterdir():
+            # Only count .def files and directories
+            if item.is_file() and item.suffix == '.def':
+                total_count += 1
+                if self._get_saved_checkbox_state(item):
+                    checked_count += 1
+            elif item.is_dir():
+                total_count += 1
+                # For subdirectories, check if they're in a checked state
+                sub_state = self._get_directory_child_state(item)
+                if sub_state == "all":
+                    checked_count += 1
+                elif sub_state == "mixed":
+                    # If any subdirectory is mixed, the parent is also mixed
+                    return "mixed"
+        
+        if total_count == 0:
+            return "none"
+        elif checked_count == 0:
+            return "none"
+        elif checked_count == total_count:
+            return "all"
+        else:
+            return "mixed"
+
+    def _update_directory_checkbox_display(self, dir_path: Path):
+        """Update a directory checkbox button to show tri-state based on children.
+        
+        Args:
+            dir_path: Path to the directory.
+        """
+        if dir_path not in self.definition_checkboxes:
+            return
+        
+        checkbox = self.definition_checkboxes[dir_path]
+        state = self._get_directory_child_state(dir_path)
+        
+        # Update checkbox state and color to show tri-state
+        # Default checkbox color (from CustomTkinter theme)
+        default_color = ("#1f6aa5", "#1f6aa5")  # Blue
+        mixed_color = ("#FFA500", "#FFA500")  # Orange for mixed state
+        
+        if state == "none":
+            checkbox.deselect()
+            checkbox.configure(fg_color=default_color)
+            if dir_path in self.definition_vars:
+                self.definition_vars[dir_path].set(False)
+        elif state == "all":
+            checkbox.select()
+            checkbox.configure(fg_color=default_color)
+            if dir_path in self.definition_vars:
+                self.definition_vars[dir_path].set(True)
+        else:  # mixed
+            checkbox.select()  # Show as checked but with different color
+            checkbox.configure(fg_color=mixed_color)
+            if dir_path in self.definition_vars:
+                self.definition_vars[dir_path].set(True)  # Treat mixed as "some checked"
 
     def _on_directory_checkbox_toggle(self, dir_path: Path):
-        """Handle directory checkbox toggle - check/uncheck all items under the directory.
+        """Handle directory checkbox toggle - cycles between check all and uncheck all.
         
         Args:
             dir_path: Path to the directory that was toggled.
         """
-        is_checked = self.definition_vars[dir_path].get()
+        # Get current state of directory's children
+        current_state = self._get_directory_child_state(dir_path)
+        
+        # If all checked, uncheck all. Otherwise, check all.
+        new_checked = current_state != "all"
         
         # Update all items under this directory recursively
-        self._set_directory_items_checked(dir_path, is_checked)
+        self._set_directory_items_checked(dir_path, new_checked)
+        
+        # Update directory checkbox display
+        self._update_directory_checkbox_display(dir_path)
+        
+        # Update row highlight
+        self._update_definition_row_highlight(dir_path)
         
         # Update header state
         self._update_left_select_all_state()
@@ -651,9 +736,10 @@ class MainWindow(ctk.CTk):
             # Update the saved state
             self._checkbox_states[str(item)] = checked
             
-            # If item is in current view, update its checkbox
+            # If item is in current view, update its checkbox and highlight
             if item in self.definition_vars:
                 self.definition_vars[item].set(checked)
+                self._update_definition_row_highlight(item)
             
             # Recurse into subdirectories
             if item.is_dir():
@@ -668,11 +754,39 @@ class MainWindow(ctk.CTk):
         # Update saved state
         self._checkbox_states[str(file_path)] = self.definition_vars[file_path].get()
         
+        # Update row highlight
+        self._update_definition_row_highlight(file_path)
+        
+        # Update parent directory's tri-state checkbox if visible
+        parent_dir = file_path.parent
+        if parent_dir in self.definition_checkboxes:
+            self._update_directory_checkbox_display(parent_dir)
+            self._update_definition_row_highlight(parent_dir)
+        
         # Update header state
         self._update_left_select_all_state()
         
         # Save states
         self._save_checkbox_states()
+
+    def _update_definition_row_highlight(self, path: Path):
+        """Update the background highlight for a definition row based on checkbox state.
+        
+        Args:
+            path: Path to the definition file or directory.
+        """
+        if path not in self.definition_row_frames or path not in self.definition_vars:
+            return
+        
+        row_frame = self.definition_row_frames[path]
+        is_checked = self.definition_vars[path].get()
+        
+        if is_checked:
+            # Highlight with a subtle color
+            row_frame.configure(fg_color=("gray85", "gray25"))
+        else:
+            # Reset to transparent
+            row_frame.configure(fg_color="transparent")
 
     def _get_definition_title(self, file_path: Path) -> str:
         """Extract the title from a .def file.
@@ -766,7 +880,7 @@ class MainWindow(ctk.CTk):
         return ""
 
     def _get_definition_changes(self, file_path: Path) -> list[dict]:
-        """Extract the change elements from a .def file.
+        """Extract the change and delete elements from a .def file.
 
         Args:
             file_path: Path to the .def file.
@@ -788,6 +902,19 @@ class MainWindow(ctk.CTk):
                         'item': item,
                         'property': prop,
                         'value': value
+                    })
+            # Also find all <delete> elements (for GameplayTagContainer properties)
+            for delete_elem in root.iter('delete'):
+                item = delete_elem.get('item', '')
+                prop = delete_elem.get('property', '')
+                # For delete, the 'value' is the tag being deleted (original value)
+                value = delete_elem.get('value', '')
+                if item and prop:
+                    changes.append({
+                        'item': item,
+                        'property': prop,
+                        'value': value,
+                        'is_delete': True
                     })
         except (ET.ParseError, OSError):
             pass
@@ -988,6 +1115,34 @@ class MainWindow(ctk.CTk):
                 return ''
         return ''
 
+    def _get_gameplay_tag_container(self, item_data: dict, property_name: str) -> list[str]:
+        """Get the list of tags from a GameplayTagContainer property.
+
+        Args:
+            item_data: The item's data from the JSON.
+            property_name: The property name (e.g., 'ExcludeItems', 'AllowedItems').
+
+        Returns:
+            List of tag strings (e.g., ["Item.Unstorable.HandsOnly", "Item.Brew"]).
+        """
+        value_array = item_data.get('Value', [])
+        if not value_array:
+            return []
+
+        # Find the specified property
+        for prop in value_array:
+            if prop.get('Name') == property_name:
+                # GameplayTagContainer has nested Value array with GameplayTagContainerPropertyData
+                outer_value = prop.get('Value', [])
+                if isinstance(outer_value, list) and len(outer_value) > 0:
+                    # First element contains the actual tag values
+                    inner = outer_value[0]
+                    if isinstance(inner, dict):
+                        tags = inner.get('Value', [])
+                        if isinstance(tags, list):
+                            return [str(tag) for tag in tags]
+        return []
+
     def _get_item_display_name(self, item_data: dict, string_tables: dict) -> str:
         """Get the display name for an item by resolving from string tables.
 
@@ -1041,13 +1196,29 @@ class MainWindow(ctk.CTk):
             return display_data
         
         # Get XML changes as a lookup: {item_name: {property: new_value}}
+        # For GameplayTagContainer (delete), we track: {item_name: {property: {tag: is_delete}}}
         xml_changes = self._get_definition_changes(file_path)
         changes_lookup = {}
+        tag_deletes = {}  # Separate lookup for tag-based deletes: {item_name: {property: set(tags)}}
+        
         for change in xml_changes:
             item_name = change['item']
-            if item_name not in changes_lookup:
-                changes_lookup[item_name] = {}
-            changes_lookup[item_name][change['property']] = change['value']
+            prop = change['property']
+            value = change['value']
+            is_delete = change.get('is_delete', False)
+            
+            if is_delete and prop in ('ExcludeItems', 'AllowedItems'):
+                # Track as a tag deletion
+                if item_name not in tag_deletes:
+                    tag_deletes[item_name] = {}
+                if prop not in tag_deletes[item_name]:
+                    tag_deletes[item_name][prop] = set()
+                tag_deletes[item_name][prop].add(value)
+            else:
+                # Regular change
+                if item_name not in changes_lookup:
+                    changes_lookup[item_name] = {}
+                changes_lookup[item_name][prop] = value
         
         # Get all items from the game data
         # Try data table format first (Exports[0].Table.Data)
@@ -1071,6 +1242,9 @@ class MainWindow(ctk.CTk):
         none_defaults = {}  # Store property -> value from NONE entries
         for item_changes in changes_lookup.values():
             all_properties.update(item_changes.keys())
+        # Also include properties from tag_deletes
+        for item_tags in tag_deletes.values():
+            all_properties.update(item_tags.keys())
         
         # Check for NONE entries - these define properties/values but no items selected
         if 'NONE' in changes_lookup:
@@ -1085,6 +1259,40 @@ class MainWindow(ctk.CTk):
             
             # For each property type being tracked
             for prop_name in all_properties:
+                # Special handling for GameplayTagContainer properties - one row per tag
+                if prop_name in ('ExcludeItems', 'AllowedItems'):
+                    tags = self._get_gameplay_tag_container(item, prop_name)
+                    
+                    if tags:
+                        # Show one row per existing tag
+                        for tag in tags:
+                            # Check if this tag is marked for deletion
+                            has_mod = (item_name in tag_deletes and 
+                                       prop_name in tag_deletes[item_name] and
+                                       tag in tag_deletes[item_name][prop_name])
+                            # Show "NULL" for deleted items
+                            new_value = 'NULL' if has_mod else ''
+                            
+                            display_data.append({
+                                'row_name': item_name,  # Storage name for XML
+                                'name': item_name,      # Display as storage name
+                                'property': prop_name,
+                                'value': tag,           # The tag is the current value
+                                'new_value': new_value,
+                                'has_mod': has_mod
+                            })
+                    else:
+                        # No tags - show empty row for this object (allows adding)
+                        display_data.append({
+                            'row_name': item_name,
+                            'name': item_name,
+                            'property': prop_name,
+                            'value': '',              # No current tags
+                            'new_value': '',
+                            'has_mod': False
+                        })
+                    continue
+                
                 current_value = self._get_item_property_value(item, prop_name)
                 
                 # Skip if this item doesn't have this property
@@ -1252,18 +1460,14 @@ class MainWindow(ctk.CTk):
 
         header_font = ctk.CTkFont(size=16, weight="bold")
         
-        # Header tri-state button for select all/none/mixed
-        # States: "none" (☐), "all" (☑), "mixed" (☐ with ─)
+        # Header tri-state checkbox for select all/none/mixed (uses color to indicate mixed)
         self.select_all_state = "none"  # Track state: "none", "all", "mixed"
-        self.select_all_btn = ctk.CTkButton(
+        self.select_all_var = ctk.BooleanVar(value=False)
+        self.select_all_btn = ctk.CTkCheckBox(
             header_frame,
-            text="☐",
-            width=24,
-            height=24,
-            fg_color="transparent",
-            hover_color=("gray75", "gray25"),
-            text_color=("gray10", "gray90"),
-            font=ctk.CTkFont(size=16),
+            text="",
+            variable=self.select_all_var,
+            width=20,
             command=self._on_select_all_toggle
         )
         self.select_all_btn.grid(row=0, column=0, sticky="w")
@@ -1296,6 +1500,7 @@ class MainWindow(ctk.CTk):
         self.row_values = []
         self.row_names = []      # Original item names for XML
         self.row_properties = [] # Property names for XML
+        self.row_frames = []     # Row frames for highlighting
 
         # Display the data in table format
         if display_data:
@@ -1315,46 +1520,61 @@ class MainWindow(ctk.CTk):
                 new_var = ctk.StringVar(value=str(item['new_value']))
                 self.row_entry_vars.append(new_var)
                 
+                # Create row frame for highlighting
+                row_frame = ctk.CTkFrame(changes_frame, fg_color="transparent")
+                row_frame.grid(row=i, column=0, columnspan=5, sticky="ew", pady=1)
+                self.row_frames.append(row_frame)
+                
+                # Configure columns within row frame
+                row_frame.grid_columnconfigure(0, weight=0, minsize=30)
+                row_frame.grid_columnconfigure(1, weight=3, uniform="col")
+                row_frame.grid_columnconfigure(2, weight=2, uniform="col")
+                row_frame.grid_columnconfigure(3, weight=1, uniform="col")
+                row_frame.grid_columnconfigure(4, weight=1, uniform="col")
+                
                 checkbox = ctk.CTkCheckBox(
-                    changes_frame,
+                    row_frame,
                     text="",
                     variable=var,
                     width=20,
                     command=lambda idx=i: self._on_row_checkbox_toggle(idx)
                 )
-                checkbox.grid(row=i, column=0, sticky="w", pady=2)
+                checkbox.grid(row=0, column=0, sticky="w", pady=2)
                 self.row_checkboxes.append(checkbox)
 
                 ctk.CTkLabel(
-                    changes_frame,
+                    row_frame,
                     text=item['name'],
                     font=row_font,
                     anchor="w"
-                ).grid(row=i, column=1, sticky="w", padx=(0, 10), pady=2)
+                ).grid(row=0, column=1, sticky="w", padx=(0, 10), pady=2)
 
                 ctk.CTkLabel(
-                    changes_frame,
+                    row_frame,
                     text=item['property'],
                     font=row_font,
                     anchor="w"
-                ).grid(row=i, column=2, sticky="w", padx=(0, 10), pady=2)
+                ).grid(row=0, column=2, sticky="w", padx=(0, 10), pady=2)
 
                 ctk.CTkLabel(
-                    changes_frame,
+                    row_frame,
                     text=item['value'],
                     font=row_font,
                     anchor="w"
-                ).grid(row=i, column=3, sticky="w", padx=(0, 10), pady=2)
+                ).grid(row=0, column=3, sticky="w", padx=(0, 10), pady=2)
 
                 new_entry = ctk.CTkEntry(
-                    changes_frame,
+                    row_frame,
                     textvariable=new_var,
                     font=row_font,
                     width=80,
                     height=28
                 )
-                new_entry.grid(row=i, column=4, sticky="w", pady=2)
+                new_entry.grid(row=0, column=4, sticky="w", pady=2)
                 self.row_entries.append(new_entry)
+                
+                # Apply initial highlight if checked
+                self._update_row_highlight(i)
             
             # Update select all checkbox state based on initial row states
             self._update_select_all_checkbox_state()
@@ -1366,6 +1586,23 @@ class MainWindow(ctk.CTk):
                 font=ctk.CTkFont(size=16)
             )
             no_changes_label.grid(row=0, column=0, columnspan=5, pady=20)
+        
+        # Add Save button at bottom of right pane
+        save_button_frame = ctk.CTkFrame(details_frame, fg_color="transparent")
+        save_button_frame.pack(fill="x", padx=10, pady=(10, 10))
+        
+        self.save_btn = ctk.CTkButton(
+            save_button_frame,
+            text="Save",
+            width=80,
+            height=32,
+            fg_color="#28a745",
+            hover_color="#218838",
+            text_color="white",
+            font=ctk.CTkFont(weight="bold"),
+            command=self._on_save_click
+        )
+        self.save_btn.pack(side="right")
 
     def _on_select_all_toggle(self):
         """Handle select all button toggle - cycles between all checked and all unchecked."""
@@ -1375,10 +1612,12 @@ class MainWindow(ctk.CTk):
             for i, var in enumerate(self.row_checkbox_vars):
                 var.set(False)
                 self.row_entry_vars[i].set(self.row_values[i])
+                self._update_row_highlight(i)
         else:
             # Check all
-            for var in self.row_checkbox_vars:
+            for i, var in enumerate(self.row_checkbox_vars):
                 var.set(True)
+                self._update_row_highlight(i)
         
         # Update button state
         self._update_select_all_checkbox_state()
@@ -1393,8 +1632,30 @@ class MainWindow(ctk.CTk):
             # Unchecked - set New to Value
             self.row_entry_vars[idx].set(self.row_values[idx])
         
+        # Update row highlight
+        self._update_row_highlight(idx)
+        
         # Update header checkbox state based on row checkboxes
         self._update_select_all_checkbox_state()
+
+    def _update_row_highlight(self, idx: int):
+        """Update the background highlight for a row based on checkbox state.
+        
+        Args:
+            idx: Index of the row.
+        """
+        if idx >= len(self.row_frames) or idx >= len(self.row_checkbox_vars):
+            return
+        
+        row_frame = self.row_frames[idx]
+        is_checked = self.row_checkbox_vars[idx].get()
+        
+        if is_checked:
+            # Highlight with a subtle color
+            row_frame.configure(fg_color=("gray85", "gray25"))
+        else:
+            # Reset to transparent
+            row_frame.configure(fg_color="transparent")
 
     def _update_select_all_checkbox_state(self):
         """Update the select all button to reflect the state of row checkboxes."""
@@ -1404,18 +1665,25 @@ class MainWindow(ctk.CTk):
         checked_count = sum(1 for var in self.row_checkbox_vars if var.get())
         total_count = len(self.row_checkbox_vars)
         
+        # Default checkbox color (from CustomTkinter theme)
+        default_color = ("#1f6aa5", "#1f6aa5")  # Blue
+        mixed_color = ("#FFA500", "#FFA500")  # Orange for mixed state
+        
         if checked_count == 0:
-            # None checked - show empty box
+            # None checked
             self.select_all_state = "none"
-            self.select_all_btn.configure(text="☐")
+            self.select_all_btn.deselect()
+            self.select_all_btn.configure(fg_color=default_color)
         elif checked_count == total_count:
-            # All checked - show checked box
+            # All checked
             self.select_all_state = "all"
-            self.select_all_btn.configure(text="☑")
+            self.select_all_btn.select()
+            self.select_all_btn.configure(fg_color=default_color)
         else:
-            # Mixed state - show box with dash
+            # Mixed state - checked with orange color
             self.select_all_state = "mixed"
-            self.select_all_btn.configure(text="▣")
+            self.select_all_btn.select()
+            self.select_all_btn.configure(fg_color=mixed_color)
 
     def _on_build_click(self):
         """Handle Build button click - build the mod from selected definitions."""
@@ -1540,17 +1808,19 @@ class MainWindow(ctk.CTk):
                 self.set_status_message("No <mod> element found in definition file", is_error=True)
                 return
             
-            # Clear existing <change> elements
+            # Clear existing <change> and <delete> elements
             for change in mod_element.findall('change'):
                 mod_element.remove(change)
+            for delete in mod_element.findall('delete'):
+                mod_element.remove(delete)
             
-            # Add new <change> elements for checked rows
+            # Add new <change> or <delete> elements for checked rows
             changes_added = 0
             properties_used = {}  # Track property -> value for NONE fallback
             
             for i, checkbox_var in enumerate(self.row_checkbox_vars):
                 prop_name = self.row_properties[i]
-                new_value = self.row_entry_vars[i].get()
+                new_value = self.row_entry_vars[i].get().strip()
                 
                 # Track the first value seen for each property (for NONE fallback)
                 if prop_name not in properties_used:
@@ -1558,11 +1828,31 @@ class MainWindow(ctk.CTk):
                 
                 if checkbox_var.get():  # Only add if checked
                     row_name = self.row_names[i]
+                    original_value = self.row_values[i]
                     
-                    change_elem = ET.SubElement(mod_element, 'change')
-                    change_elem.set('item', row_name)
-                    change_elem.set('property', prop_name)
-                    change_elem.set('value', new_value)
+                    # For ExcludeItems: use <delete> if value is empty/NULL, else <change>
+                    # For GameplayTagContainer properties: use <delete> if value is empty/NULL, else <change>
+                    if prop_name in ('ExcludeItems', 'AllowedItems'):
+                        if not new_value or new_value.upper() == 'NULL':
+                            # Delete: remove the original tag
+                            delete_elem = ET.SubElement(mod_element, 'delete')
+                            delete_elem.set('item', row_name)
+                            delete_elem.set('property', prop_name)
+                            delete_elem.set('value', original_value)
+                        else:
+                            # Change: replace original with new
+                            change_elem = ET.SubElement(mod_element, 'change')
+                            change_elem.set('item', row_name)
+                            change_elem.set('property', prop_name)
+                            change_elem.set('value', new_value)
+                            change_elem.set('original', original_value)
+                    else:
+                        # Regular property change
+                        change_elem = ET.SubElement(mod_element, 'change')
+                        change_elem.set('item', row_name)
+                        change_elem.set('property', prop_name)
+                        change_elem.set('value', new_value)
+                    
                     changes_added += 1
             
             # If no items were checked, save NONE entries to preserve property/value

@@ -211,7 +211,20 @@ class BuildManager:
             with open(dest_file, 'r', encoding='utf-8') as f:
                 json_data = json.load(f)
             
-            # Apply changes
+            # Apply delete operations first
+            for delete in mod_element.findall('delete'):
+                item_name = delete.get('item', '')
+                property_path = delete.get('property', '')
+                value_to_delete = delete.get('value', '')
+                
+                if item_name == 'NONE':
+                    continue
+                
+                # Handle GameplayTagContainer deletions (ExcludeItems, AllowedItems)
+                if property_path in ('ExcludeItems', 'AllowedItems') and value_to_delete:
+                    self._remove_gameplay_tag(json_data, item_name, property_path, value_to_delete)
+            
+            # Apply change operations
             for change in mod_element.findall('change'):
                 item_name = change.get('item', '')
                 property_path = change.get('property', '')
@@ -220,7 +233,21 @@ class BuildManager:
                 if item_name == 'NONE':
                     continue
                 
-                self._apply_json_change(json_data, item_name, property_path, new_value)
+                # Special handling for GameplayTagContainer - replace tag in array
+                if property_path in ('ExcludeItems', 'AllowedItems'):
+                    # 'original' = tag to remove, 'value' = tag to add
+                    original_tag = change.get('original', '')
+                    new_tag = new_value.strip()
+                    
+                    # Remove the original tag
+                    if original_tag:
+                        self._remove_gameplay_tag(json_data, item_name, property_path, original_tag)
+                    
+                    # Add the new tag
+                    if new_tag:
+                        self._add_gameplay_tag(json_data, item_name, property_path, new_tag)
+                else:
+                    self._apply_json_change(json_data, item_name, property_path, new_value)
             
             # Save modified JSON
             with open(dest_file, 'w', encoding='utf-8') as f:
@@ -322,6 +349,120 @@ class BuildManager:
                             item['Value'] = new_value
                     return
 
+    def _remove_gameplay_tag(
+        self,
+        json_data: dict,
+        item_name: str,
+        property_name: str,
+        tag_to_remove: str
+    ):
+        """Remove a tag from a GameplayTagContainer array in DT_Storage data.
+
+        Args:
+            json_data: The JSON data to modify.
+            item_name: The storage row name (e.g., "Dwarf.Inventory").
+            property_name: The property name (e.g., "ExcludeItems", "AllowedItems").
+            tag_to_remove: The tag to remove (e.g., "Item.Brew").
+        """
+        if 'Exports' not in json_data:
+            return
+
+        # Find the Table.Data for data tables (DT_Storage format)
+        try:
+            items = json_data['Exports'][0]['Table']['Data']
+        except (KeyError, IndexError, TypeError):
+            return
+
+        # Find the item by name
+        for item in items:
+            if item.get('Name') != item_name:
+                continue
+
+            # Find the specified property in the Value array
+            value_array = item.get('Value', [])
+            for prop in value_array:
+                if prop.get('Name') != property_name:
+                    continue
+
+                # Navigate to the inner Value array containing tags
+                outer_value = prop.get('Value', [])
+                if not isinstance(outer_value, list) or len(outer_value) == 0:
+                    continue
+
+                inner = outer_value[0]
+                if not isinstance(inner, dict):
+                    continue
+
+                tags = inner.get('Value', [])
+                if not isinstance(tags, list):
+                    continue
+
+                # Remove the tag if it exists
+                if tag_to_remove in tags:
+                    tags.remove(tag_to_remove)
+                    logger.info(
+                        "Removed tag '%s' from %s in '%s'",
+                        tag_to_remove, property_name, item_name
+                    )
+                return
+
+    def _add_gameplay_tag(
+        self,
+        json_data: dict,
+        item_name: str,
+        property_name: str,
+        tag_to_add: str
+    ):
+        """Add a tag to a GameplayTagContainer array in DT_Storage data.
+
+        Args:
+            json_data: The JSON data to modify.
+            item_name: The storage row name (e.g., "Dwarf.Inventory").
+            property_name: The property name (e.g., "ExcludeItems", "AllowedItems").
+            tag_to_add: The tag to add (e.g., "Item.NewTag").
+        """
+        if 'Exports' not in json_data:
+            return
+
+        # Find the Table.Data for data tables (DT_Storage format)
+        try:
+            items = json_data['Exports'][0]['Table']['Data']
+        except (KeyError, IndexError, TypeError):
+            return
+
+        # Find the item by name
+        for item in items:
+            if item.get('Name') != item_name:
+                continue
+
+            # Find the specified property in the Value array
+            value_array = item.get('Value', [])
+            for prop in value_array:
+                if prop.get('Name') != property_name:
+                    continue
+
+                # Navigate to the inner Value array containing tags
+                outer_value = prop.get('Value', [])
+                if not isinstance(outer_value, list) or len(outer_value) == 0:
+                    continue
+
+                inner = outer_value[0]
+                if not isinstance(inner, dict):
+                    continue
+
+                tags = inner.get('Value', [])
+                if not isinstance(tags, list):
+                    continue
+
+                # Add the tag if it doesn't already exist
+                if tag_to_add not in tags:
+                    tags.append(tag_to_add)
+                    logger.info(
+                        "Added tag '%s' to %s in '%s'",
+                        tag_to_add, property_name, item_name
+                    )
+                return
+
     def _convert_json_to_uasset(self, mod_name: str) -> bool:
         """Convert JSON files to uasset format using UAssetGUI.
         
@@ -409,9 +550,12 @@ class BuildManager:
         uasset_dir = mymodfiles_base / UASSET_DIR
         final_dir = mymodfiles_base / FINALMOD_DIR
         
-        final_dir.mkdir(parents=True, exist_ok=True)
+        # Create mod_P subdirectory inside finalmod
+        mod_p_name = f'{mod_name}_P'
+        mod_p_dir = final_dir / mod_p_name
+        mod_p_dir.mkdir(parents=True, exist_ok=True)
         
-        output_utoc = final_dir / f'{mod_name}_P.utoc'
+        output_utoc = mod_p_dir / f'{mod_p_name}.utoc'
         
         cmd = [
             str(retoc_path),
@@ -445,6 +589,8 @@ class BuildManager:
     def _create_zip(self, mod_name: str) -> Path | None:
         """Create a zip file of the mod in Downloads folder.
         
+        The zip contains the {mod_name}_P directory with all mod files.
+        
         Args:
             mod_name: Name of the mod.
             
@@ -453,9 +599,11 @@ class BuildManager:
         """
         mymodfiles_base = get_default_mymodfiles_dir() / mod_name
         final_dir = mymodfiles_base / FINALMOD_DIR
+        mod_p_name = f'{mod_name}_P'
+        mod_p_dir = final_dir / mod_p_name
         
-        if not final_dir.exists():
-            logger.error("finalmod directory not found: %s", final_dir)
+        if not mod_p_dir.exists():
+            logger.error("mod directory not found: %s", mod_p_dir)
             return None
         
         downloads_dir = Path.home() / 'Downloads'
@@ -465,8 +613,10 @@ class BuildManager:
         
         try:
             with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-                for file_path in final_dir.rglob('*'):
+                # Include the mod_P directory in the zip structure
+                for file_path in mod_p_dir.rglob('*'):
                     if file_path.is_file():
+                        # Archive path includes the mod_P folder name
                         rel_path = file_path.relative_to(final_dir)
                         zipf.write(file_path, rel_path)
             
