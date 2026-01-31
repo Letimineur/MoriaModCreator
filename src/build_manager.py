@@ -70,8 +70,12 @@ class BuildManager:
             return False, "No definition files selected"
 
         try:
-            # Step 1: Process definition files (0-40%)
-            self._report_progress("Processing definition files...", 0.0)
+            # Step 0: Clear previous build files
+            self._report_progress("Cleaning previous build files...", 0.0)
+            self._clean_build_directories(mod_name)
+            
+            # Step 1: Process definition files (5-40%)
+            self._report_progress("Processing definition files...", 0.05)
             success_count, error_count = self._process_definitions(mod_name, def_files)
             
             if error_count > 0:
@@ -103,6 +107,28 @@ class BuildManager:
         except (OSError, ValueError, KeyError) as e:
             logger.exception("Build failed with exception")
             return False, str(e)
+
+    def _clean_build_directories(self, mod_name: str):
+        """Clean the build directories before starting a new build.
+        
+        Args:
+            mod_name: Name of the mod.
+        """
+        mymodfiles_base = get_default_mymodfiles_dir() / mod_name
+        
+        dirs_to_clean = [
+            mymodfiles_base / JSONFILES_DIR,
+            mymodfiles_base / UASSET_DIR,
+            mymodfiles_base / FINALMOD_DIR,
+        ]
+        
+        for dir_path in dirs_to_clean:
+            if dir_path.exists():
+                try:
+                    shutil.rmtree(dir_path)
+                    logger.info("Cleaned directory: %s", dir_path)
+                except OSError as e:
+                    logger.warning("Could not clean directory %s: %s", dir_path, e)
 
     def _process_definitions(self, mod_name: str, def_files: list[Path]) -> tuple[int, int]:
         """Process all definition files and modify JSON.
