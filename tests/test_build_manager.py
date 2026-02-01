@@ -354,6 +354,135 @@ class TestSetNestedPropertyValue:
         # First item unchanged
         assert data[0]["Value"][0]["Value"][0]["Value"][0]["Value"][0]["Value"] == 100
 
+    def test_wildcard_array_index(self):
+        """Test [*] wildcard expands to all array elements."""
+        data = [
+            {
+                "Name": "StageDataList",
+                "Value": [
+                    {"Name": "StageDataList", "Value": [
+                        {"Name": "MonumentProgressonPointsNeeded", "Value": 0}
+                    ]},
+                    {"Name": "StageDataList", "Value": [
+                        {"Name": "MonumentProgressonPointsNeeded", "Value": 180}
+                    ]},
+                    {"Name": "StageDataList", "Value": [
+                        {"Name": "MonumentProgressonPointsNeeded", "Value": 260}
+                    ]}
+                ]
+            }
+        ]
+        # Wildcard should change ALL stages
+        self.manager._set_nested_property_value(data, "StageDataList[*].MonumentProgressonPointsNeeded", "0")
+        assert data[0]["Value"][0]["Value"][0]["Value"] == 0
+        assert data[0]["Value"][1]["Value"][0]["Value"] == 0
+        assert data[0]["Value"][2]["Value"][0]["Value"] == 0
+
+    def test_dict_style_property(self):
+        """Test setting a property in dict-style format (like RichCurveKey)."""
+        data = [
+            {
+                "Name": "FloatCurve",
+                "Value": [
+                    {
+                        "Name": "Keys",
+                        "Value": [
+                            {"Name": "Keys", "Value": [
+                                {"Name": "Keys", "Value": {"Time": 0.0, "Value": 90.0}}
+                            ]}
+                        ]
+                    }
+                ]
+            }
+        ]
+        # Set the Time value inside the dict - path is FloatCurve.Keys[0].Keys.Time
+        # FloatCurve -> Keys array -> [0] -> struct with Name=Keys -> Value is dict with Time
+        self.manager._set_nested_property_value(data, "FloatCurve.Keys[0].Keys.Time", "100")
+        assert data[0]["Value"][0]["Value"][0]["Value"][0]["Value"]["Time"] == 100.0
+
+
+class TestApplyJsonChangeNone:
+    """Tests for _apply_json_change with NONE item."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.manager = BuildManager()
+
+    def test_none_applies_to_all_datatable_rows(self):
+        """Test NONE applies change to all DataTable rows."""
+        json_data = {
+            "Exports": [
+                {
+                    "ObjectName": "DT_SettlementLevelData",
+                    "Table": {
+                        "Data": [
+                            {"Name": "1", "Value": [{"Name": "LevelData", "Value": [{"Name": "MaxNpcsAllowed", "Value": 5}]}]},
+                            {"Name": "2", "Value": [{"Name": "LevelData", "Value": [{"Name": "MaxNpcsAllowed", "Value": 7}]}]},
+                            {"Name": "3", "Value": [{"Name": "LevelData", "Value": [{"Name": "MaxNpcsAllowed", "Value": 9}]}]}
+                        ]
+                    }
+                }
+            ]
+        }
+        
+        self.manager._apply_json_change(json_data, "NONE", "LevelData.MaxNpcsAllowed", "40")
+        
+        # All rows should be updated
+        assert json_data["Exports"][0]["Table"]["Data"][0]["Value"][0]["Value"][0]["Value"] == 40
+        assert json_data["Exports"][0]["Table"]["Data"][1]["Value"][0]["Value"][0]["Value"] == 40
+        assert json_data["Exports"][0]["Table"]["Data"][2]["Value"][0]["Value"][0]["Value"] == 40
+
+    def test_none_applies_to_single_asset(self):
+        """Test NONE applies change to single asset export."""
+        json_data = {
+            "Exports": [
+                {
+                    "ObjectName": "Curve_Test",
+                    "Data": [
+                        {"Name": "FloatCurve", "Value": [{"Name": "TestProp", "Value": 100}]}
+                    ]
+                }
+            ]
+        }
+        
+        self.manager._apply_json_change(json_data, "NONE", "FloatCurve.TestProp", "200")
+        
+        assert json_data["Exports"][0]["Data"][0]["Value"][0]["Value"] == 200
+
+    def test_none_with_wildcard_and_dict_style(self):
+        """Test NONE with wildcard [*] and dict-style property access (curve files)."""
+        # Simulates the structure of Curve_AdmiringTreasurePiles_Noble.json
+        json_data = {
+            "Exports": [
+                {
+                    "ObjectName": "Curve_Test",
+                    "Data": [
+                        {
+                            "Name": "FloatCurve",
+                            "Value": [
+                                {
+                                    "Name": "Keys",
+                                    "Value": [
+                                        {"Name": "Keys", "Value": [{"Name": "Keys", "Value": {"Time": 0.0, "Value": 90.0}}]},
+                                        {"Name": "Keys", "Value": [{"Name": "Keys", "Value": {"Time": 10.0, "Value": 90.0}}]},
+                                        {"Name": "Keys", "Value": [{"Name": "Keys", "Value": {"Time": 41.0, "Value": 180.0}}]}
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        }
+        
+        # Change all Time values to 1800 using NONE and wildcard
+        self.manager._apply_json_change(json_data, "NONE", "FloatCurve.Keys[*].Keys.Time", "1800")
+        
+        keys = json_data["Exports"][0]["Data"][0]["Value"][0]["Value"]
+        assert keys[0]["Value"][0]["Value"]["Time"] == 1800.0
+        assert keys[1]["Value"][0]["Value"]["Time"] == 1800.0
+        assert keys[2]["Value"][0]["Value"]["Time"] == 1800.0
+
 
 class TestBuildProcess:
     """Integration tests for the build process."""

@@ -231,11 +231,10 @@ class BuildManager:
                 property_path = change.get('property', '')
                 new_value = change.get('value', '')
                 
-                if item_name == 'NONE':
-                    continue
-                
                 # Special handling for GameplayTagContainer - replace tag in array
                 if property_path in ('ExcludeItems', 'AllowedItems'):
+                    if item_name == 'NONE':
+                        continue
                     # 'original' = tag to remove, 'value' = tag to add
                     original_tag = change.get('original', '')
                     new_tag = new_value.strip()
@@ -274,11 +273,34 @@ class BuildManager:
         
         Args:
             json_data: The JSON data to modify.
-            item_name: The export name or row name to find.
+            item_name: The export name or row name to find. Use 'NONE' to apply to all.
             property_path: Dot-separated property path.
             new_value: The new value to set.
         """
         if 'Exports' not in json_data:
+            return
+        
+        # Handle NONE - apply to first export's Data (for single asset files like curves)
+        # or to all rows in DataTable format
+        if item_name == 'NONE':
+            # Try DataTable format first - apply to all rows
+            try:
+                table_data = json_data['Exports'][0]['Table']['Data']
+                for row in table_data:
+                    value_array = row.get('Value', [])
+                    if value_array:
+                        self._set_nested_property_value(value_array, property_path, new_value)
+                logger.debug("Applied NONE change to all DataTable rows: %s = %s", property_path, new_value)
+                return
+            except (KeyError, IndexError, TypeError):
+                pass
+            
+            # Try single asset format - apply to first export's Data
+            for export in json_data['Exports']:
+                if 'Data' in export and isinstance(export['Data'], list) and len(export['Data']) > 0:
+                    self._set_nested_property_value(export['Data'], property_path, new_value)
+                    logger.debug("Applied NONE change to single asset: %s = %s", property_path, new_value)
+                    return
             return
         
         # First, try ObjectName matching for class-based exports (GameplayEffects, etc.)
@@ -313,23 +335,31 @@ class BuildManager:
             # Not a DataTable format, that's fine
             pass
 
-    def _set_nested_property_value(self, data: list, property_path: str, new_value: str):
+    def _set_nested_property_value(self, data: list | dict, property_path: str, new_value: str):
         """Set a property value using dot notation for nested traversal.
         
         Supports array indexing with bracket notation, e.g.:
         - "StageDataList[1].MonumentProgressonPointsNeeded"
         - "Value[0].Count"
+        - "FloatCurve.Keys[*].Time" (wildcard applies to all elements)
+        
+        Also handles dict-style properties where the value is a direct key
+        (e.g., {"Time": 0, "Value": 90} instead of [{"Name": "Time", "Value": 0}])
         
         Args:
-            data: The data list to modify.
+            data: The data list or dict to modify.
             property_path: Dot-separated property path with optional array indices.
             new_value: The new value to set.
         """
         if not data or not property_path:
             return
         
+        # Check for wildcard [*] - expand and recursively call for each index
+        if '[*]' in property_path:
+            self._set_wildcard_property_value(data, property_path, new_value)
+            return
+        
         # Parse property path into parts, handling array indices
-        # e.g., "StageDataList[1].MonumentProgressonPointsNeeded" -> [("StageDataList", 1), ("MonumentProgressonPointsNeeded", None)]
         parts = []
         for segment in property_path.split('.'):
             match = re.match(r'^(\w+)(?:\[(\d+)\])?$', segment)
@@ -344,32 +374,53 @@ class BuildManager:
         
         # Traverse to the parent of the target property
         for name, index in parts[:-1]:
-            if isinstance(current, list):
-                found = False
-                for item in current:
-                    if isinstance(item, dict) and item.get('Name') == name:
-                        if 'Value' in item:
-                            current = item['Value']
-                            # Handle array indexing
-                            if index is not None and isinstance(current, list):
-                                if 0 <= index < len(current):
-                                    indexed_item = current[index]
-                                    # If indexed item has a Value, traverse into it
-                                    if isinstance(indexed_item, dict) and 'Value' in indexed_item:
-                                        current = indexed_item['Value']
-                                    else:
-                                        current = indexed_item
-                                else:
-                                    return  # Index out of bounds
-                            found = True
-                            break
-                if not found:
-                    return
-            else:
+            current = self._traverse_property(current, name, index)
+            if current is None:
                 return
         
         # Set the final property value
         target_name, target_index = parts[-1]
+        self._set_final_property(current, target_name, target_index, new_value)
+    
+    def _traverse_property(self, current, name: str, index: int | None):
+        """Traverse one level of property path.
+        
+        Returns the next level of data, or None if not found.
+        """
+        if isinstance(current, list):
+            for item in current:
+                if isinstance(item, dict) and item.get('Name') == name:
+                    if 'Value' in item:
+                        result = item['Value']
+                        # Handle array indexing
+                        if index is not None and isinstance(result, list):
+                            if 0 <= index < len(result):
+                                indexed_item = result[index]
+                                if isinstance(indexed_item, dict) and 'Value' in indexed_item:
+                                    return indexed_item['Value']
+                                return indexed_item
+                            return None  # Index out of bounds
+                        return result
+            return None
+        elif isinstance(current, dict):
+            # Handle dict-style access (e.g., for RichCurveKey)
+            if name in current:
+                result = current[name]
+                if index is not None and isinstance(result, list):
+                    if 0 <= index < len(result):
+                        indexed_item = result[index]
+                        if isinstance(indexed_item, dict) and 'Value' in indexed_item:
+                            return indexed_item['Value']
+                        return indexed_item
+                    return None
+                return result
+            elif 'Value' in current:
+                # Try to traverse into Value
+                return self._traverse_property(current['Value'], name, index)
+        return None
+    
+    def _set_final_property(self, current, target_name: str, target_index: int | None, new_value: str):
+        """Set the final property value."""
         if isinstance(current, list):
             for item in current:
                 if isinstance(item, dict) and item.get('Name') == target_name:
@@ -387,6 +438,52 @@ class BuildManager:
                         old_value = item['Value']
                         item['Value'] = self._convert_value(old_value, new_value)
                     return
+        elif isinstance(current, dict):
+            # Handle dict-style property (e.g., {"Time": 0, "Value": 90})
+            if target_name in current:
+                old_value = current[target_name]
+                current[target_name] = self._convert_value(old_value, new_value)
+    
+    def _set_wildcard_property_value(self, data: list | dict, property_path: str, new_value: str):
+        """Handle [*] wildcard by expanding to all array indices."""
+        # Find the array with wildcard and get its length
+        match = re.match(r'^(.+?)\[\*\](.*)$', property_path)
+        if not match:
+            return
+        
+        array_path = match.group(1)  # e.g., "FloatCurve.Keys"
+        rest_of_path = match.group(2)  # e.g., ".Time" or ""
+        if rest_of_path.startswith('.'):
+            rest_of_path = rest_of_path[1:]
+        
+        # Traverse to the array
+        parts = []
+        for segment in array_path.split('.'):
+            match_part = re.match(r'^(\w+)(?:\[(\d+)\])?$', segment)
+            if match_part:
+                name = match_part.group(1)
+                index = int(match_part.group(2)) if match_part.group(2) is not None else None
+                parts.append((name, index))
+            else:
+                parts.append((segment, None))
+        
+        current = data
+        for name, index in parts:
+            current = self._traverse_property(current, name, index)
+            if current is None:
+                return
+        
+        # current should now be the array
+        if not isinstance(current, list):
+            return
+        
+        # Apply to each element
+        for i in range(len(current)):
+            if rest_of_path:
+                expanded_path = f"{array_path}[{i}].{rest_of_path}"
+            else:
+                expanded_path = f"{array_path}[{i}]"
+            self._set_nested_property_value(data, expanded_path, new_value)
     
     def _convert_value(self, old_value, new_value: str):
         """Convert new_value to match the type of old_value."""

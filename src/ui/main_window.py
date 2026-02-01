@@ -1353,6 +1353,7 @@ class MainWindow(ctk.CTk):
         
         # Collect all properties being modified by the XML to know which to display
         all_properties = set()
+        wildcard_properties = set()  # Properties that should expand with [*]
         none_defaults = {}  # Store property -> value from NONE entries
         for item_changes in changes_lookup.values():
             all_properties.update(item_changes.keys())
@@ -1365,6 +1366,23 @@ class MainWindow(ctk.CTk):
             none_defaults = changes_lookup['NONE']
             # Remove NONE from lookup so it doesn't match any real items
             del changes_lookup['NONE']
+        
+        # Convert specific array indices to wildcard patterns to show ALL indices
+        # e.g., StageDataList[1].Prop and StageDataList[3].Prop -> StageDataList[*].Prop
+        expanded_properties = set()
+        for prop in all_properties:
+            # Check if this property has a specific array index like [1], [3], etc.
+            match = re.match(r'^(.+?)\[\d+\](.*)$', prop)
+            if match:
+                # Convert to wildcard pattern
+                wildcard_prop = f"{match.group(1)}[*]{match.group(2)}"
+                wildcard_properties.add(wildcard_prop)
+            else:
+                expanded_properties.add(prop)
+        
+        # Add wildcard properties to the set (they'll be expanded per-item)
+        expanded_properties.update(wildcard_properties)
+        all_properties = expanded_properties
         
         # For each item, show the properties (with XML changes where applicable)
         for item in items:
