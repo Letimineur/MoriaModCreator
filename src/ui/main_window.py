@@ -1518,40 +1518,150 @@ class MainWindow(ctk.CTk):
             
             # For each property we're tracking, try to get the value from this export
             for prop_name in all_properties:
-                # Get current value using nested property lookup
-                current_value = self._get_nested_property_value(export['Data'], prop_name)
-                
-                if not current_value:
-                    continue
-                
-                # Check if there's a specific item match in changes_lookup
-                has_mod = False
-                new_value = current_value
-                row_name = item_name
-                
-                for lookup_item_name, properties in changes_lookup.items():
-                    if lookup_item_name == item_name or lookup_item_name in item_name:
-                        if prop_name in properties:
-                            has_mod = True
-                            new_value = properties[prop_name]
-                            row_name = lookup_item_name
-                            break
-                
-                # If no specific match but NONE defaults exist for this property
-                if not has_mod and prop_name in none_defaults:
-                    new_value = none_defaults[prop_name]
-                    # Keep row_name as item_name (the actual export name) for saving
-                
-                display_data.append({
-                    'row_name': row_name,  # Always use actual item name for XML saving
-                    'name': item_name,
-                    'property': prop_name,
-                    'value': current_value,
-                    'new_value': new_value,
-                    'has_mod': has_mod
-                })
+                # Check if property has wildcard - if so, expand it
+                if '[*]' in prop_name:
+                    expanded_results = self._expand_wildcard_property_single_asset(export['Data'], prop_name)
+                    for expanded_prop, current_value in expanded_results:
+                        # Determine if this is a modification and what the new value should be
+                        has_mod = False
+                        new_value = current_value
+                        row_name = item_name
+                        
+                        # Check for item-specific match
+                        for lookup_item_name, properties in changes_lookup.items():
+                            if lookup_item_name == item_name or lookup_item_name in item_name:
+                                if prop_name in properties:
+                                    has_mod = True
+                                    new_value = properties[prop_name]
+                                    row_name = lookup_item_name
+                                    break
+                        
+                        # If no specific match but NONE defaults exist for this property
+                        if not has_mod and prop_name in none_defaults:
+                            new_value = none_defaults[prop_name]
+                            has_mod = True  # NONE with wildcard applies to all
+                        
+                        display_data.append({
+                            'row_name': row_name,
+                            'name': item_name,
+                            'property': expanded_prop,  # Use expanded property (with index)
+                            'value': current_value,
+                            'new_value': new_value,
+                            'has_mod': has_mod
+                        })
+                else:
+                    # Get current value using nested property lookup
+                    current_value = self._get_nested_property_value(export['Data'], prop_name)
+                    
+                    if not current_value:
+                        continue
+                    
+                    # Check if there's a specific item match in changes_lookup
+                    has_mod = False
+                    new_value = current_value
+                    row_name = item_name
+                    
+                    for lookup_item_name, properties in changes_lookup.items():
+                        if lookup_item_name == item_name or lookup_item_name in item_name:
+                            if prop_name in properties:
+                                has_mod = True
+                                new_value = properties[prop_name]
+                                row_name = lookup_item_name
+                                break
+                    
+                    # If no specific match but NONE defaults exist for this property
+                    if not has_mod and prop_name in none_defaults:
+                        new_value = none_defaults[prop_name]
+                    
+                    display_data.append({
+                        'row_name': row_name,  # Always use actual item name for XML saving
+                        'name': item_name,
+                        'property': prop_name,
+                        'value': current_value,
+                        'new_value': new_value,
+                        'has_mod': has_mod
+                    })
         
         return display_data
+    
+    def _expand_wildcard_property_single_asset(self, data: list, property_pattern: str) -> list[tuple[str, str]]:
+        """Expand a wildcard [*] property pattern to all matching indices for single asset data.
+        
+        Args:
+            data: The export Data array.
+            property_pattern: Property path with [*] wildcard.
+            
+        Returns:
+            List of (expanded_property, value) tuples.
+        """
+        if '[*]' not in property_pattern:
+            value = self._get_nested_property_value(data, property_pattern)
+            if value:
+                return [(property_pattern, value)]
+            return []
+        
+        # Parse the path before and after [*]
+        # e.g., "FloatCurve.Keys[*].Keys.Time" -> before="FloatCurve.Keys", after="Keys.Time"
+        match = re.match(r'^(.+?)\[\*\]\.?(.*)$', property_pattern)
+        if not match:
+            return []
+        
+        path_before = match.group(1)
+        path_after = match.group(2)
+        
+        # Navigate to the array
+        current = data
+        for segment in path_before.split('.'):
+            seg_match = re.match(r'^(\w+)(?:\[(\d+)\])?$', segment)
+            if not seg_match:
+                return []
+            name = seg_match.group(1)
+            index = int(seg_match.group(2)) if seg_match.group(2) is not None else None
+            
+            if isinstance(current, list):
+                found = False
+                for item in current:
+                    if isinstance(item, dict) and item.get('Name') == name:
+                        current = item.get('Value', [])
+                        if index is not None and isinstance(current, list):
+                            if 0 <= index < len(current):
+                                indexed = current[index]
+                                current = indexed.get('Value', indexed) if isinstance(indexed, dict) else indexed
+                            else:
+                                return []
+                        found = True
+                        break
+                if not found:
+                    return []
+            elif isinstance(current, dict):
+                if name in current:
+                    current = current[name]
+                    if index is not None and isinstance(current, list):
+                        if 0 <= index < len(current):
+                            indexed = current[index]
+                            current = indexed.get('Value', indexed) if isinstance(indexed, dict) else indexed
+                        else:
+                            return []
+                else:
+                    return []
+        
+        # current should now be an array
+        if not isinstance(current, list):
+            return []
+        
+        # Expand to all indices
+        results = []
+        for i in range(len(current)):
+            if path_after:
+                expanded_prop = f"{path_before}[{i}].{path_after}"
+            else:
+                expanded_prop = f"{path_before}[{i}]"
+            
+            value = self._get_nested_property_value(data, expanded_prop)
+            if value:
+                results.append((expanded_prop, value))
+        
+        return results
 
     def _show_definition_details(self, file_path: Path):
         """Show the definition details in the right pane.
