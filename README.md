@@ -1,5 +1,27 @@
 # Moria MOD Creator
 
+Hi everyone, I have just finished Beta release 0.5 of Moria Mod Creator application.  
+
+##This application:
+- Handles loading the game data
+- Using definition files applies any combination of changes to that data
+- Comes pre-configured with 16 modes from Nexus mods, which the user can modify or create as is. 
+OR
+- Create your own custom combination into one mod defined by the user
+
+It can be found here: https://github.com/jbowensii/MoriaModCreator or on my Discord channel
+There are 3 files:
+- MoriaMODCreator.exe
+- definitions.zip    (game file change definitions)
+- mymodfiles.zip  (pre-canned mods that repicate nexus mods)
+All issues shown in the video have been resolved and tested. Please enter bugs on GitHub here: https://github.com/jbowensii/MoriaModCreator/issues
+
+Utilities to download:  (all free, do not download if they ask you to pay)
+https://github.com/trumank/retoc/releases
+https://fmodel.app/
+https://github.com/atenfyr/UAssetGUI
+https://github.com/WistfulHopes/ZenTools-UE4
+
 A desktop application for creating mods for **Lord of the Rings: Return to Moria**.
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
