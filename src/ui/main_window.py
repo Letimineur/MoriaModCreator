@@ -48,6 +48,11 @@ class MainWindow(ctk.CTk):
         self.geometry("1024x768")
         self.minsize(800, 600)
         
+        # Set application icon
+        icon_path = get_assets_dir() / "icons" / "application icons" / "app_icon.ico"
+        if icon_path.exists():
+            self.iconbitmap(str(icon_path))
+        
         # Start maximized/fullscreen
         self.after(10, lambda: self.state('zoomed'))
 
