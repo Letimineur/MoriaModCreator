@@ -129,6 +129,11 @@ class MainWindow(ctk.CTk):
         self.buildings_view = None
         self.buildings_btn = None
         self.main_area = None
+        
+        # Navigation buttons (initialized in _create_header)
+        self.mod_builder_btn = None
+        self.import_btn = None
+        self.convert_btn = None
 
         self._create_widgets()
 
@@ -1164,7 +1169,7 @@ class MainWindow(ctk.CTk):
         
         # Expand to all indices
         results = []
-        for i, array_item in enumerate(array_data):
+        for i, _ in enumerate(array_data):
             expanded_prop = f"{array_name}[{i}]"
             if rest_of_path:
                 expanded_prop += f".{rest_of_path}"
@@ -2143,8 +2148,9 @@ class MainWindow(ctk.CTk):
         # If currently none or mixed, select all. If all, deselect all.
         new_state = self.select_all_state != "all"
         
-        bg_color = self._get_theme_color(ctk.ThemeManager.theme["CTkFrame"]["fg_color"])
-        selected_color = self._get_theme_color(("gray80", "gray30"))
+        # Theme colors available if needed
+        _ = self._get_theme_color(ctk.ThemeManager.theme["CTkFrame"]["fg_color"])
+        _ = self._get_theme_color(("gray80", "gray30"))
         
         for i, item_id in enumerate(self.tree_items):
             self.row_checked[i] = new_state
