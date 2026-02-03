@@ -21,6 +21,7 @@ from src.constants import (
 )
 from src.build_manager import BuildManager
 from src.ui.about_dialog import show_about_dialog
+from src.ui.buildings_view import BuildingsView
 from src.ui.import_dialog import show_import_dialog
 from src.ui.json_convert_dialog import show_json_convert_dialog
 from src.ui.mod_name_dialog import show_mod_name_dialog
@@ -121,6 +122,13 @@ class MainWindow(ctk.CTk):
         self.search_entry = None
         self.search_last_index = -1
         self.search_last_text = ""
+        
+        # View switching
+        self.current_view = "definitions"  # "definitions" or "buildings"
+        self.definitions_view_frame = None
+        self.buildings_view = None
+        self.buildings_btn = None
+        self.main_area = None
 
         self._create_widgets()
 
@@ -180,23 +188,69 @@ class MainWindow(ctk.CTk):
         )
         title_label.pack(side="left")
 
-        # CENTER: Import and Convert buttons
+        # CENTER: Navigation buttons (Mod Builder, Constructions) and action buttons (Import, Convert)
         center_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
         center_frame.grid(row=0, column=1)
 
-        self._create_toolbar_button(
+        # Mod Builder button (default view)
+        self.mod_builder_btn = ctk.CTkButton(
             center_frame,
-            "import_icon.png",
-            "Import",
-            self._run_import
+            text="Mod Builder",
+            width=120,
+            height=40,
+            fg_color=("#3B8ED0", "#1F6AA5"),  # Active by default
+            hover_color=("#36719F", "#144870"),
+            font=ctk.CTkFont(size=13, weight="bold"),
+            corner_radius=8,
+            command=self._show_definitions_view
         )
+        self.mod_builder_btn.pack(side="left", padx=5)
 
-        self._create_toolbar_button(
+        # Constructions button
+        self.buildings_btn = ctk.CTkButton(
             center_frame,
-            "json_icon.png",
-            "Convert to JSON",
-            self._run_json_convert
+            text="Constructions",
+            width=120,
+            height=40,
+            fg_color=("gray70", "gray30"),
+            hover_color=("gray60", "gray40"),
+            font=ctk.CTkFont(size=13, weight="bold"),
+            corner_radius=8,
+            command=self._show_buildings_view
         )
+        self.buildings_btn.pack(side="left", padx=5)
+
+        # Separator
+        sep_label = ctk.CTkLabel(center_frame, text="|", text_color="gray50", font=ctk.CTkFont(size=20))
+        sep_label.pack(side="left", padx=10)
+
+        # Import Game Files button
+        self.import_btn = ctk.CTkButton(
+            center_frame,
+            text="Import Game Files",
+            width=140,
+            height=40,
+            fg_color=("#2E7D32", "#1B5E20"),
+            hover_color=("#1B5E20", "#0D3610"),
+            font=ctk.CTkFont(size=13, weight="bold"),
+            corner_radius=8,
+            command=self._run_import
+        )
+        self.import_btn.pack(side="left", padx=5)
+
+        # Convert Game Files button
+        self.convert_btn = ctk.CTkButton(
+            center_frame,
+            text="Convert Game Files",
+            width=150,
+            height=40,
+            fg_color=("#F57C00", "#E65100"),
+            hover_color=("#E65100", "#BF360C"),
+            font=ctk.CTkFont(size=13, weight="bold"),
+            corner_radius=8,
+            command=self._run_json_convert
+        )
+        self.convert_btn.pack(side="left", padx=5)
 
         # RIGHT: Settings and Help buttons
         right_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
@@ -219,20 +273,35 @@ class MainWindow(ctk.CTk):
     def _create_main_area(self):
         """Create the main content area with definitions pane."""
         # Container for the main area
-        main_area = ctk.CTkFrame(self.content_frame, fg_color="transparent")
-        main_area.pack(fill="both", expand=True, padx=10, pady=10)
+        self.main_area = ctk.CTkFrame(self.content_frame, fg_color="transparent")
+        self.main_area.pack(fill="both", expand=True, padx=10, pady=10)
 
         # Configure grid: definitions pane (smaller) and main content (larger)
-        main_area.grid_columnconfigure(0, weight=1)
-        main_area.grid_columnconfigure(1, weight=3)
-        main_area.grid_rowconfigure(0, weight=1)
+        self.main_area.grid_columnconfigure(0, weight=1)
+        self.main_area.grid_columnconfigure(1, weight=3)
+        self.main_area.grid_rowconfigure(0, weight=1)
+
+        # === DEFINITIONS VIEW (default) ===
+        self.definitions_view_frame = ctk.CTkFrame(self.main_area, fg_color="transparent")
+        self.definitions_view_frame.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        self.definitions_view_frame.grid_columnconfigure(0, weight=1)
+        self.definitions_view_frame.grid_columnconfigure(1, weight=3)
+        self.definitions_view_frame.grid_rowconfigure(0, weight=1)
 
         # Definitions pane (left)
-        self._create_definitions_pane(main_area)
+        self._create_definitions_pane(self.definitions_view_frame)
 
         # Main content area (right)
-        self.main_content = ctk.CTkFrame(main_area, fg_color="transparent")
+        self.main_content = ctk.CTkFrame(self.definitions_view_frame, fg_color="transparent")
         self.main_content.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+        
+        # === BUILDINGS VIEW (hidden initially) ===
+        self.buildings_view = BuildingsView(
+            self.main_area,
+            on_status_message=self.set_status_message,
+            on_back=self._show_definitions_view
+        )
+        # Don't grid it yet - will be shown when Buildings button is clicked
 
     def _create_status_bar(self):
         """Create the status bar at the bottom of the window."""
@@ -2490,3 +2559,40 @@ class MainWindow(ctk.CTk):
             width=80
         )
         ok_btn.pack(pady=(0, 20))
+
+    def _show_buildings_view(self):
+        """Switch to the Constructions view."""
+        if self.current_view == "buildings":
+            # Already in buildings view, switch back to definitions
+            self._show_definitions_view()
+            return
+        
+        self.current_view = "buildings"
+        
+        # Hide definitions view
+        self.definitions_view_frame.grid_forget()
+        
+        # Show buildings view
+        self.buildings_view.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        
+        # Update button appearances - Constructions active, Mod Builder inactive
+        self.buildings_btn.configure(fg_color=("#3B8ED0", "#1F6AA5"))
+        self.mod_builder_btn.configure(fg_color=("gray70", "gray30"))
+        
+        self.set_status_message("Constructions view active")
+
+    def _show_definitions_view(self):
+        """Switch back to the Mod Builder view."""
+        self.current_view = "definitions"
+        
+        # Hide buildings view
+        self.buildings_view.grid_forget()
+        
+        # Show definitions view
+        self.definitions_view_frame.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        
+        # Update button appearances - Mod Builder active, Constructions inactive
+        self.mod_builder_btn.configure(fg_color=("#3B8ED0", "#1F6AA5"))
+        self.buildings_btn.configure(fg_color=("gray70", "gray30"))
+        
+        self.clear_status_message()

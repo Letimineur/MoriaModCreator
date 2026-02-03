@@ -49,6 +49,13 @@ def get_default_definitions_dir() -> Path:
     return get_appdata_dir() / 'definitions'
 
 
+def get_buildings_dir() -> Path:
+    """Get the buildings New Objects directory."""
+    buildings_dir = get_appdata_dir() / 'New Objects' / 'Build'
+    buildings_dir.mkdir(parents=True, exist_ok=True)
+    return buildings_dir
+
+
 def get_config_path() -> Path:
     """Get the path to the config.ini file."""
     return get_appdata_dir() / 'config.ini'
