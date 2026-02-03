@@ -20,9 +20,9 @@ class AboutDialog(ctk.CTkToplevel):
         super().__init__(parent)
 
         self.title("Help - Moria MOD Creator")
-        self.geometry("700x500")
+        self.geometry("900x550")
         self.resizable(True, True)
-        self.minsize(600, 400)
+        self.minsize(800, 450)
 
         # Make this dialog modal
         self.transient(parent)
@@ -30,15 +30,15 @@ class AboutDialog(ctk.CTkToplevel):
 
         # Center the dialog on screen
         self.update_idletasks()
-        x = (self.winfo_screenwidth() - 700) // 2
-        y = (self.winfo_screenheight() - 500) // 2
-        self.geometry(f"700x500+{x}+{y}")
+        x = (self.winfo_screenwidth() - 900) // 2
+        y = (self.winfo_screenheight() - 550) // 2
+        self.geometry(f"900x550+{x}+{y}")
 
         # Load images
         self._load_images()
 
         # Current active tab
-        self._active_tab = "main"
+        self._active_tab = "about"
 
         self._create_widgets()
 
@@ -49,48 +49,52 @@ class AboutDialog(ctk.CTkToplevel):
         self.bind("<Configure>", self._on_resize)
 
     def _load_images(self):
-        """Load background and overlay images."""
+        """Load overlay image (Mereak Firmaxe with transparency)."""
         assets_path = Path(__file__).parent.parent.parent / "assets" / "images"
 
-        # Load background image
-        bg_path = assets_path / "background.png"
-        if bg_path.exists():
-            self._bg_image_pil = Image.open(bg_path)
-        else:
-            self._bg_image_pil = None
-
-        # Load overlay image (Mereak Firmaxe)
+        # Load overlay image (Mereak Firmaxe) - preserving transparency
         overlay_path = assets_path / "Mereak Firmaxe.png"
         if overlay_path.exists():
-            self._overlay_image_pil = Image.open(overlay_path)
+            img = Image.open(overlay_path).convert("RGBA")
+            # Flip horizontally so character faces toward the text (right)
+            self._overlay_image_pil = img.transpose(Image.FLIP_LEFT_RIGHT)
         else:
             self._overlay_image_pil = None
 
-        # CTkImage references (will be created on resize)
-        self._bg_image = None
+        # CTkImage reference (will be created on resize)
         self._overlay_image = None
 
     def _create_widgets(self):
         """Create the dialog widgets."""
-        # Main container
-        self._container = ctk.CTkFrame(self, fg_color="transparent")
+        # Main container - uses theme colors
+        self._container = ctk.CTkFrame(self)
         self._container.pack(fill="both", expand=True)
 
-        # Background label (will hold the background image)
-        self._bg_label = ctk.CTkLabel(self._container, text="")
-        self._bg_label.place(x=0, y=0, relwidth=1, relheight=1)
+        # LEFT SIDE: Image frame (fixed width), tight to lower left
+        self._image_frame = ctk.CTkFrame(
+            self._container,
+            width=440,
+            fg_color="transparent"
+        )
+        self._image_frame.pack(side="left", fill="y", padx=0, pady=0)
+        self._image_frame.pack_propagate(False)  # Keep fixed width
 
-        # Content frame overlaid on background
+        # Image label inside image frame, aligned to bottom-left
+        self._overlay_label = ctk.CTkLabel(
+            self._image_frame,
+            text="",
+            fg_color="transparent"
+        )
+        self._overlay_label.pack(side="bottom", anchor="sw", padx=0, pady=0)
+
+        # RIGHT SIDE: Content frame with buttons and scrollable text (fixed width)
         self._content_frame = ctk.CTkFrame(
             self._container,
-            fg_color=("gray90", "gray17"),
-            corner_radius=10
+            width=450,
+            fg_color="transparent"
         )
-        self._content_frame.place(relx=0.02, rely=0.02, relwidth=0.60, relheight=0.96)
-
-        # Overlay image on the right
-        self._overlay_label = ctk.CTkLabel(self._container, text="")
-        self._overlay_label.place(relx=0.62, rely=0.1, relwidth=0.36, relheight=0.8)
+        self._content_frame.pack(side="right", fill="y", padx=(5, 10), pady=10)
+        self._content_frame.pack_propagate(False)  # Keep fixed width
 
         # Create content inside content frame
         self._create_content()
@@ -99,33 +103,35 @@ class AboutDialog(ctk.CTkToplevel):
         """Create the content inside the content frame."""
         # Button bar at top
         btn_frame = ctk.CTkFrame(self._content_frame, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=10, pady=10)
+        btn_frame.pack(fill="x", pady=(0, 10))
 
-        self._main_btn = ctk.CTkButton(
-            btn_frame,
-            text="Main",
-            command=lambda: self._show_tab("main"),
-            width=80,
-            fg_color="#1a5fb4",
-            hover_color="#1c4a8a"
-        )
-        self._main_btn.pack(side="left", padx=(0, 5))
-
+        # About button first
         self._about_btn = ctk.CTkButton(
             btn_frame,
             text="About",
             command=lambda: self._show_tab("about"),
-            width=80,
+            width=90,
+            fg_color="#1a5fb4",
+            hover_color="#1c4a8a"
+        )
+        self._about_btn.pack(side="left", padx=(0, 5))
+
+        # Disclaimer button (renamed from Main)
+        self._disclaimer_btn = ctk.CTkButton(
+            btn_frame,
+            text="Disclaimer",
+            command=lambda: self._show_tab("disclaimer"),
+            width=90,
             fg_color="gray50",
             hover_color="gray40"
         )
-        self._about_btn.pack(side="left", padx=5)
+        self._disclaimer_btn.pack(side="left", padx=5)
 
         self._credits_btn = ctk.CTkButton(
             btn_frame,
             text="Credits",
             command=lambda: self._show_tab("credits"),
-            width=80,
+            width=90,
             fg_color="gray50",
             hover_color="gray40"
         )
@@ -147,10 +153,10 @@ class AboutDialog(ctk.CTkToplevel):
             self._content_frame,
             fg_color="transparent"
         )
-        self._text_frame.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+        self._text_frame.pack(fill="both", expand=True)
 
-        # Show main tab by default
-        self._show_tab("main")
+        # Show about tab by default
+        self._show_tab("about")
 
     def _show_tab(self, tab_name: str):
         """Switch to the specified tab."""
@@ -160,11 +166,11 @@ class AboutDialog(ctk.CTkToplevel):
         active_color = "#1a5fb4"
         inactive_color = "gray50"
 
-        self._main_btn.configure(
-            fg_color=active_color if tab_name == "main" else inactive_color
-        )
         self._about_btn.configure(
             fg_color=active_color if tab_name == "about" else inactive_color
+        )
+        self._disclaimer_btn.configure(
+            fg_color=active_color if tab_name == "disclaimer" else inactive_color
         )
         self._credits_btn.configure(
             fg_color=active_color if tab_name == "credits" else inactive_color
@@ -175,15 +181,15 @@ class AboutDialog(ctk.CTkToplevel):
             widget.destroy()
 
         # Show appropriate content
-        if tab_name == "main":
-            self._show_main_content()
+        if tab_name == "disclaimer":
+            self._show_disclaimer_content()
         elif tab_name == "about":
             self._show_about_content()
         elif tab_name == "credits":
             self._show_credits_content()
 
-    def _show_main_content(self):
-        """Display the main disclaimer content."""
+    def _show_disclaimer_content(self):
+        """Display the disclaimer content."""
         title = ctk.CTkLabel(
             self._text_frame,
             text="DISCLAIMER OF WARRANTY",
@@ -297,7 +303,7 @@ class AboutDialog(ctk.CTkToplevel):
         desc_label.pack(pady=15)
 
     def _show_credits_content(self):
-        """Display the credits information."""
+        """Display the credits information with clickable links."""
         title = ctk.CTkLabel(
             self._text_frame,
             text="Credits & Acknowledgments",
@@ -305,30 +311,112 @@ class AboutDialog(ctk.CTkToplevel):
         )
         title.pack(pady=(10, 20))
 
-        credits_text = (
-            "Special thanks to the following people and projects:\n\n"
-            "• Community contributors (to be added)\n\n"
-            "─────────────────────────────\n\n"
-            "Third-Party Tools:\n"
-            "• FModel - UE4/UE5 asset viewer\n"
-            "• UAssetGUI - Unreal Engine asset editor\n"
-            "• retoc - Table of contents rebuilder\n"
-            "• ZenTools - Zen asset tools\n\n"
-            "─────────────────────────────\n\n"
-            "Libraries:\n"
+        # Community contributors header
+        community_label = ctk.CTkLabel(
+            self._text_frame,
+            text="Community Contributors (Nexus Mods):",
+            font=ctk.CTkFont(size=13, weight="bold")
+        )
+        community_label.pack(anchor="w", padx=10, pady=(0, 5))
+
+        # Contributor links - alphabetical order
+        contributors = [
+            ("Deathmajesty", "https://www.nexusmods.com/profile/Deathmajesty?gameId=5829"),
+            ("kenuaena", "https://www.nexusmods.com/profile/kenuaena?gameId=5829"),
+            ("momenaya", "https://www.nexusmods.com/profile/momenaya?gameId=5829"),
+            ("sqitey", "https://www.nexusmods.com/profile/sqitey?gameId=5829"),
+            ("stiffmeds", "https://www.nexusmods.com/profile/stiffmeds?gameId=5829"),
+            ("TheRareKiwi", "https://www.nexusmods.com/profile/TheRareKiwi?gameId=5829"),
+            ("tobiichiro", "https://www.nexusmods.com/profile/tobiichiro?gameId=5829"),
+            ("Vardigard", "https://www.nexusmods.com/profile/Vardigard?gameId=5829"),
+        ]
+
+        for name, url in contributors:
+            contrib_frame = ctk.CTkFrame(self._text_frame, fg_color="transparent")
+            contrib_frame.pack(anchor="w", padx=20, pady=1)
+
+            bullet = ctk.CTkLabel(contrib_frame, text="•", font=ctk.CTkFont(size=12))
+            bullet.pack(side="left")
+
+            contrib_link = ctk.CTkLabel(
+                contrib_frame,
+                text=name,
+                font=ctk.CTkFont(size=12, underline=True),
+                text_color="#3584e4",
+                cursor="hand2"
+            )
+            contrib_link.pack(side="left", padx=(5, 0))
+            contrib_link.bind("<Button-1>", lambda e, u=url: self._open_url(u))
+
+        # Separator
+        sep1 = ctk.CTkFrame(self._text_frame, height=1, fg_color="gray50")
+        sep1.pack(fill="x", padx=10, pady=(15, 5))
+
+        # Third-Party Tools header
+        tools_header = ctk.CTkLabel(
+            self._text_frame,
+            text="Third-Party Tools:",
+            font=ctk.CTkFont(size=13, weight="bold")
+        )
+        tools_header.pack(anchor="w", padx=10, pady=(10, 5))
+
+        # Tool links
+        tools = [
+            ("FModel", "UE4/UE5 asset viewer", "https://fmodel.app/"),
+            ("UAssetGUI", "Unreal Engine asset editor", "https://github.com/atenfyr/UAssetGUI"),
+            ("retoc", "Table of contents rebuilder", "https://github.com/trumank/retoc/releases"),
+            ("ZenTools", "Zen asset tools", "https://github.com/WistfulHopes/ZenTools-UE4"),
+        ]
+
+        for name, desc, url in tools:
+            tool_frame = ctk.CTkFrame(self._text_frame, fg_color="transparent")
+            tool_frame.pack(anchor="w", padx=20, pady=2)
+
+            bullet = ctk.CTkLabel(tool_frame, text="•", font=ctk.CTkFont(size=12))
+            bullet.pack(side="left")
+
+            tool_link = ctk.CTkLabel(
+                tool_frame,
+                text=f"{name}",
+                font=ctk.CTkFont(size=12, underline=True),
+                text_color="#3584e4",
+                cursor="hand2"
+            )
+            tool_link.pack(side="left", padx=(5, 0))
+            tool_link.bind("<Button-1>", lambda e, u=url: self._open_url(u))
+
+            desc_label = ctk.CTkLabel(
+                tool_frame,
+                text=f" - {desc}",
+                font=ctk.CTkFont(size=12)
+            )
+            desc_label.pack(side="left")
+
+        # Separator
+        sep2 = ctk.CTkFrame(self._text_frame, height=1, fg_color="gray50")
+        sep2.pack(fill="x", padx=10, pady=(15, 5))
+
+        # Libraries header
+        libs_header = ctk.CTkLabel(
+            self._text_frame,
+            text="Libraries:",
+            font=ctk.CTkFont(size=13, weight="bold")
+        )
+        libs_header.pack(anchor="w", padx=10, pady=(10, 5))
+
+        libraries_text = (
             "• CustomTkinter - Modern UI toolkit\n"
             "• Pillow - Image processing\n"
-            "• Python - Programming language\n"
+            "• Python - Programming language"
         )
 
-        content = ctk.CTkLabel(
+        libs_label = ctk.CTkLabel(
             self._text_frame,
-            text=credits_text,
+            text=libraries_text,
             font=ctk.CTkFont(size=12),
-            justify="left",
-            wraplength=350
+            justify="left"
         )
-        content.pack(pady=10, padx=10)
+        libs_label.pack(anchor="w", padx=20, pady=5)
 
     def _open_url(self, url: str):
         """Open a URL in the default browser."""
@@ -341,39 +429,18 @@ class AboutDialog(ctk.CTkToplevel):
             self._update_images()
 
     def _update_images(self):
-        """Update images to fit current window size."""
+        """Update overlay image - use 50% of original size."""
         try:
-            width = self.winfo_width()
-            height = self.winfo_height()
-
-            if width < 10 or height < 10:
-                return
-
-            # Update background image
-            if self._bg_image_pil:
-                self._bg_image = ctk.CTkImage(
-                    light_image=self._bg_image_pil,
-                    dark_image=self._bg_image_pil,
-                    size=(width, height)
-                )
-                self._bg_label.configure(image=self._bg_image)
-
-            # Update overlay image (maintain aspect ratio)
+            # Force geometry update
+            self.update_idletasks()
+            
+            # Update overlay image at 50% of original size
             if self._overlay_image_pil:
-                overlay_width = int(width * 0.35)
-                overlay_height = int(height * 0.75)
-
-                # Calculate aspect ratio
                 orig_w, orig_h = self._overlay_image_pil.size
-                aspect = orig_w / orig_h
-
-                # Fit within bounds
-                if overlay_width / aspect <= overlay_height:
-                    new_w = overlay_width
-                    new_h = int(overlay_width / aspect)
-                else:
-                    new_h = overlay_height
-                    new_w = int(overlay_height * aspect)
+                
+                # Use 50% of original size
+                new_w = orig_w // 2
+                new_h = orig_h // 2
 
                 self._overlay_image = ctk.CTkImage(
                     light_image=self._overlay_image_pil,
