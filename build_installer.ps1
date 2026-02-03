@@ -1,7 +1,7 @@
 # Build Installer Script for Moria MOD Creator
 # This script:
 # 1. Cleans mymodfiles (removes subdirs without .ini files)
-# 2. Creates Definitions.zip and mymodfiles.zip
+# 2. Creates zip files: Definitions.zip, mymodfiles.zip, NewObjects.zip, utilities.zip
 # 3. Builds the installer with Inno Setup
 # 4. Signs the installer
 
@@ -26,7 +26,7 @@ Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 
 # Step 1: Clean mymodfiles - remove subdirs without .ini files
-Write-Host "[1/5] Cleaning mymodfiles directory..." -ForegroundColor Yellow
+Write-Host "[1/7] Cleaning mymodfiles directory..." -ForegroundColor Yellow
 $mymodfilesDir = "$AppDataDir\mymodfiles"
 
 if (Test-Path $mymodfilesDir) {
@@ -57,7 +57,7 @@ if (Test-Path $mymodfilesDir) {
 }
 
 # Step 2: Create Definitions.zip
-Write-Host "[2/5] Creating Definitions.zip..." -ForegroundColor Yellow
+Write-Host "[2/7] Creating Definitions.zip..." -ForegroundColor Yellow
 $definitionsDir = "$AppDataDir\Definitions"
 $definitionsZip = "$ReleaseDir\Definitions.zip"
 
@@ -72,7 +72,7 @@ if (Test-Path $definitionsDir) {
 }
 
 # Step 3: Create mymodfiles.zip
-Write-Host "[3/5] Creating mymodfiles.zip..." -ForegroundColor Yellow
+Write-Host "[3/7] Creating mymodfiles.zip..." -ForegroundColor Yellow
 $mymodfilesZip = "$ReleaseDir\mymodfiles.zip"
 
 if (Test-Path $mymodfilesDir) {
@@ -85,9 +85,39 @@ if (Test-Path $mymodfilesDir) {
     exit 1
 }
 
-# Step 4: Build installer with Inno Setup
+# Step 4: Create NewObjects.zip
+Write-Host "[4/7] Creating NewObjects.zip..." -ForegroundColor Yellow
+$newObjectsDir = "$AppDataDir\New Objects"
+$newObjectsZip = "$ReleaseDir\NewObjects.zip"
+
+if (Test-Path $newObjectsDir) {
+    if (Test-Path $newObjectsZip) { Remove-Item $newObjectsZip -Force }
+    Compress-Archive -Path "$newObjectsDir\*" -DestinationPath $newObjectsZip -CompressionLevel Optimal
+    $zipSize = [math]::Round((Get-Item $newObjectsZip).Length / 1KB)
+    Write-Host "   Created NewObjects.zip ($zipSize KB)" -ForegroundColor Green
+} else {
+    Write-Host "   New Objects directory not found!" -ForegroundColor Red
+    exit 1
+}
+
+# Step 5: Create utilities.zip
+Write-Host "[5/7] Creating utilities.zip..." -ForegroundColor Yellow
+$utilitiesDir = "$AppDataDir\utilities"
+$utilitiesZip = "$ReleaseDir\utilities.zip"
+
+if (Test-Path $utilitiesDir) {
+    if (Test-Path $utilitiesZip) { Remove-Item $utilitiesZip -Force }
+    Compress-Archive -Path "$utilitiesDir\*" -DestinationPath $utilitiesZip -CompressionLevel Optimal
+    $zipSize = [math]::Round((Get-Item $utilitiesZip).Length / 1MB)
+    Write-Host "   Created utilities.zip ($zipSize MB)" -ForegroundColor Green
+} else {
+    Write-Host "   utilities directory not found!" -ForegroundColor Red
+    exit 1
+}
+
+# Step 6: Build installer with Inno Setup
 if (-not $SkipBuild) {
-    Write-Host "[4/5] Building installer with Inno Setup..." -ForegroundColor Yellow
+    Write-Host "[6/7] Building installer with Inno Setup..." -ForegroundColor Yellow
     
     if (-not (Test-Path $InnoSetup)) {
         Write-Host "   Inno Setup not found at: $InnoSetup" -ForegroundColor Red
@@ -105,13 +135,13 @@ if (-not $SkipBuild) {
     $installer = Get-ChildItem $ReleaseDir -Filter "MoriaMODCreator_Setup_*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
     Write-Host "   Built: $($installer.Name)" -ForegroundColor Green
 } else {
-    Write-Host "[4/5] Skipping installer build (--SkipBuild)" -ForegroundColor DarkYellow
+    Write-Host "[6/7] Skipping installer build (--SkipBuild)" -ForegroundColor DarkYellow
     $installer = Get-ChildItem $ReleaseDir -Filter "MoriaMODCreator_Setup_*.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 }
 
-# Step 5: Sign the installer
+# Step 7: Sign the installer
 if (-not $SkipSign -and $installer) {
-    Write-Host "[5/5] Signing installer..." -ForegroundColor Yellow
+    Write-Host "[7/7] Signing installer..." -ForegroundColor Yellow
     
     if (-not (Test-Path $SignTool)) {
         Write-Host "   Sign tool not found at: $SignTool" -ForegroundColor Red
@@ -131,7 +161,7 @@ if (-not $SkipSign -and $installer) {
         }
     }
 } else {
-    Write-Host "[5/5] Skipping signing (--SkipSign or no installer)" -ForegroundColor DarkYellow
+    Write-Host "[7/7] Skipping signing (--SkipSign or no installer)" -ForegroundColor DarkYellow
 }
 
 # Summary
