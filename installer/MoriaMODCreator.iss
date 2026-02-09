@@ -2,7 +2,7 @@
 ; Created with Inno Setup 6.7
 
 #define MyAppName "Moria MOD Creator"
-#define MyAppVersion "0.6"
+#define MyAppVersion "0.7"
 #define MyAppPublisher "John B Owens II"
 #define MyAppURL "https://github.com/jbowensii/MoriaModCreator"
 #define MyAppExeName "MoriaMODCreator.exe"
@@ -44,24 +44,24 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; Main executable
 Source: "..\release\MoriaMODCreator.exe"; DestDir: "{app}"; Flags: ignoreversion
 
-; Data files - extracted to %APPDATA%\MoriaMODCreator
-Source: "..\release\Definitions.zip"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
-Source: "..\release\mymodfiles.zip"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
-Source: "..\release\NewObjects.zip"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
-Source: "..\release\utilities.zip"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
-Source: "..\release\Constructions.zip"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall skipifsourcedoesntexist
+; Data files - extracted to %APPDATA%\MoriaMODCreator during install
+Source: "Definitions.zip"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
+Source: "mymodfiles.zip"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
+Source: "utilities.zip"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
 
 [Dirs]
 ; Create AppData directory structure
 Name: "{userappdata}\MoriaMODCreator"
-Name: "{userappdata}\MoriaMODCreator\Constructions"
+Name: "{userappdata}\MoriaMODCreator\cache"
+Name: "{userappdata}\MoriaMODCreator\changesecrets"
 Name: "{userappdata}\MoriaMODCreator\Definitions"
 Name: "{userappdata}\MoriaMODCreator\mymodfiles"
+Name: "{userappdata}\MoriaMODCreator\New Objects"
 Name: "{userappdata}\MoriaMODCreator\output"
 Name: "{userappdata}\MoriaMODCreator\output\jsondata"
 Name: "{userappdata}\MoriaMODCreator\output\retoc"
+Name: "{userappdata}\MoriaMODCreator\Secrets Source"
 Name: "{userappdata}\MoriaMODCreator\utilities"
-Name: "{userappdata}\MoriaMODCreator\New Objects"
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -72,9 +72,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: de
 ; Extract zip files to AppData (runs before launching app)
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Expand-Archive -Path '{tmp}\Definitions.zip' -DestinationPath '{userappdata}\MoriaMODCreator\Definitions' -Force"""; Flags: runhidden waituntilterminated; StatusMsg: "Extracting definitions..."
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Expand-Archive -Path '{tmp}\mymodfiles.zip' -DestinationPath '{userappdata}\MoriaMODCreator\mymodfiles' -Force"""; Flags: runhidden waituntilterminated; StatusMsg: "Extracting mod templates..."
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Expand-Archive -Path '{tmp}\NewObjects.zip' -DestinationPath '{userappdata}\MoriaMODCreator\New Objects' -Force"""; Flags: runhidden waituntilterminated; StatusMsg: "Extracting new objects..."
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Expand-Archive -Path '{tmp}\utilities.zip' -DestinationPath '{userappdata}\MoriaMODCreator\utilities' -Force"""; Flags: runhidden waituntilterminated; StatusMsg: "Extracting utilities..."
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""if (Test-Path '{tmp}\Constructions.zip') {{ Expand-Archive -Path '{tmp}\Constructions.zip' -DestinationPath '{userappdata}\MoriaMODCreator\Constructions' -Force }}"""; Flags: runhidden waituntilterminated; StatusMsg: "Extracting constructions..."
 ; Launch application
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
 
