@@ -1,8 +1,73 @@
 """Mod Name dialog for Moria MOD Creator."""
 
+import shutil
+from pathlib import Path
+
 import customtkinter as ctk
 
 from src.config import get_default_mymodfiles_dir
+
+
+class _ConfirmDeleteDialog(ctk.CTkToplevel):
+    """Confirmation dialog for deleting a mod."""
+
+    def __init__(self, parent, mod_name: str):
+        super().__init__(parent)
+
+        self.title("Confirm Delete")
+        self.geometry("380x150")
+        self.resizable(False, False)
+        self.result = False
+
+        self.transient(parent)
+        self.grab_set()
+
+        # Set application icon
+        icon_path = Path(__file__).parent.parent.parent / "assets" / "icons" / "application icons" / "app_icon.ico"
+        if icon_path.exists():
+            self.after(10, lambda: self.iconbitmap(str(icon_path)))
+
+        self.update_idletasks()
+        x = (self.winfo_screenwidth() - 380) // 2
+        y = (self.winfo_screenheight() - 150) // 2
+        self.geometry(f"380x150+{x}+{y}")
+
+        self.protocol("WM_DELETE_WINDOW", self._on_cancel)
+
+        main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        ctk.CTkLabel(
+            main_frame,
+            text=f"Delete mod '{mod_name}' and all its files?",
+            font=ctk.CTkFont(size=14),
+            wraplength=340
+        ).pack(pady=(0, 20))
+
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        btn_frame.pack(fill="x")
+
+        ctk.CTkButton(
+            btn_frame, text="Cancel",
+            fg_color="#F44336", hover_color="#D32F2F",
+            text_color="white", font=ctk.CTkFont(weight="bold"),
+            width=100, command=self._on_cancel
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            btn_frame, text="OK",
+            fg_color="#4CAF50", hover_color="#388E3C",
+            text_color="white", font=ctk.CTkFont(weight="bold"),
+            width=100, command=self._on_ok
+        ).pack(side="right")
+
+    def _on_cancel(self):
+        self.result = False
+        self.destroy()
+
+    def _on_ok(self):
+        self.result = True
+        self.destroy()
 
 
 class ModNameDialog(ctk.CTkToplevel):
@@ -21,6 +86,11 @@ class ModNameDialog(ctk.CTkToplevel):
         # Make this dialog modal
         self.transient(parent)
         self.grab_set()
+
+        # Set application icon
+        icon_path = Path(__file__).parent.parent.parent / "assets" / "icons" / "application icons" / "app_icon.ico"
+        if icon_path.exists():
+            self.after(10, lambda: self.iconbitmap(str(icon_path)))
 
         # Center the dialog on screen
         self.update_idletasks()
@@ -73,26 +143,7 @@ class ModNameDialog(ctk.CTkToplevel):
         self.mods_list_frame.grid(row=1, column=0, sticky="nsew", pady=(0, 10))
 
         # Populate existing mods
-        existing_mods = self._get_existing_mods()
-        if existing_mods:
-            for mod_name in existing_mods:
-                mod_btn = ctk.CTkButton(
-                    self.mods_list_frame,
-                    text=mod_name,
-                    fg_color="transparent",
-                    hover_color=("gray75", "gray25"),
-                    text_color=("gray10", "gray90"),
-                    anchor="w",
-                    command=lambda m=mod_name: self._select_existing_mod(m)
-                )
-                mod_btn.pack(fill="x", pady=2)
-        else:
-            no_mods_label = ctk.CTkLabel(
-                self.mods_list_frame,
-                text="No existing mods found",
-                text_color="gray"
-            )
-            no_mods_label.pack(pady=10)
+        self._refresh_mod_list()
 
         # Mod name section
         new_mod_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
@@ -147,6 +198,59 @@ class ModNameDialog(ctk.CTkToplevel):
 
         # Bind Enter key to apply
         self.name_entry.bind("<Return>", lambda e: self._on_apply())
+
+    def _refresh_mod_list(self):
+        """Refresh the mod list display."""
+        for widget in self.mods_list_frame.winfo_children():
+            widget.destroy()
+
+        existing_mods = self._get_existing_mods()
+        if existing_mods:
+            for mod_name in existing_mods:
+                row = ctk.CTkFrame(self.mods_list_frame, fg_color="transparent")
+                row.pack(fill="x", pady=2)
+
+                mod_btn = ctk.CTkButton(
+                    row,
+                    text=mod_name,
+                    fg_color="transparent",
+                    hover_color=("gray75", "gray25"),
+                    text_color=("gray10", "gray90"),
+                    anchor="w",
+                    command=lambda m=mod_name: self._select_existing_mod(m)
+                )
+                mod_btn.pack(side="left", fill="x", expand=True)
+
+                delete_btn = ctk.CTkButton(
+                    row,
+                    text="\U0001F5D1",
+                    width=28, height=28,
+                    fg_color="#F44336",
+                    hover_color="#D32F2F",
+                    text_color="white",
+                    font=ctk.CTkFont(size=14),
+                    command=lambda m=mod_name: self._confirm_delete_mod(m)
+                )
+                delete_btn.pack(side="right", padx=(5, 0))
+        else:
+            ctk.CTkLabel(
+                self.mods_list_frame,
+                text="No existing mods found",
+                text_color="gray"
+            ).pack(pady=10)
+
+    def _confirm_delete_mod(self, mod_name: str):
+        """Show confirmation dialog before deleting a mod."""
+        confirm = _ConfirmDeleteDialog(self, mod_name)
+        confirm.wait_window()
+        if confirm.result:
+            mod_dir = get_default_mymodfiles_dir() / mod_name
+            if mod_dir.exists():
+                shutil.rmtree(mod_dir)
+            # Clear selection if the deleted mod was selected
+            if self.name_var.get() == mod_name:
+                self.name_var.set("")
+            self._refresh_mod_list()
 
     def _select_existing_mod(self, mod_name: str):
         """Select an existing mod from the list - populate the mod name field."""

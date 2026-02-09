@@ -18,6 +18,7 @@ import configparser
 import json
 import logging
 import re
+import shutil
 import tkinter as tk
 from tkinter import ttk
 import xml.etree.ElementTree as ET
@@ -60,6 +61,73 @@ def get_assets_dir() -> Path:
 def get_icon_path(name: str) -> Path:
     """Get the path to an icon file."""
     return get_assets_dir() / "icons" / name
+
+
+# =============================================================================
+# CONFIRMATION DIALOGS
+# =============================================================================
+
+
+class _ConfirmDefDeleteDialog(ctk.CTkToplevel):
+    """Confirmation dialog for deleting a definition file or directory."""
+
+    def __init__(self, parent, name: str, item_type: str):
+        super().__init__(parent)
+
+        self.title("Confirm Delete")
+        self.geometry("400x150")
+        self.resizable(False, False)
+        self.result = False
+
+        self.transient(parent)
+        self.grab_set()
+
+        # Set application icon
+        icon_path = Path(__file__).parent.parent.parent / "assets" / "icons" / "application icons" / "app_icon.ico"
+        if icon_path.exists():
+            self.after(10, lambda: self.iconbitmap(str(icon_path)))
+
+        self.update_idletasks()
+        x = (self.winfo_screenwidth() - 400) // 2
+        y = (self.winfo_screenheight() - 150) // 2
+        self.geometry(f"400x150+{x}+{y}")
+
+        self.protocol("WM_DELETE_WINDOW", self._on_cancel)
+
+        main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        ctk.CTkLabel(
+            main_frame,
+            text=f"Delete {item_type} '{name}'?",
+            font=ctk.CTkFont(size=14),
+            wraplength=360
+        ).pack(pady=(0, 20))
+
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        btn_frame.pack(fill="x")
+
+        ctk.CTkButton(
+            btn_frame, text="Cancel",
+            fg_color="#F44336", hover_color="#D32F2F",
+            text_color="white", font=ctk.CTkFont(weight="bold"),
+            width=100, command=self._on_cancel
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            btn_frame, text="OK",
+            fg_color="#4CAF50", hover_color="#388E3C",
+            text_color="white", font=ctk.CTkFont(weight="bold"),
+            width=100, command=self._on_ok
+        ).pack(side="right")
+
+    def _on_cancel(self):
+        self.result = False
+        self.destroy()
+
+    def _on_ok(self):
+        self.result = True
+        self.destroy()
 
 
 # =============================================================================
@@ -629,6 +697,18 @@ class MainWindow(ctk.CTk):
             dir_label.pack(side="left", fill="x", expand=True)
             dir_label.bind("<Button-1>", lambda e, p=dir_path: self._refresh_definitions_list(p))
 
+            # Delete button for directory
+            del_btn = ctk.CTkButton(
+                row_frame,
+                text="\U0001F5D1",
+                width=28, height=28,
+                fg_color="#F44336", hover_color="#D32F2F",
+                text_color="white",
+                font=ctk.CTkFont(size=14),
+                command=lambda p=dir_path: self._confirm_delete_definition(p)
+            )
+            del_btn.pack(side="right", padx=(5, 0))
+
         # Create a checkbox for each .def file
         for file_path in def_files:
             title = self._get_definition_title(file_path)
@@ -671,6 +751,18 @@ class MainWindow(ctk.CTk):
             title_label.pack(side="left", fill="x", expand=True)
             # Bind click to show details pane
             title_label.bind("<Button-1>", lambda e, p=file_path: self._show_definition_details(p))
+
+            # Delete button for file
+            del_btn = ctk.CTkButton(
+                row_frame,
+                text="\U0001F5D1",
+                width=28, height=28,
+                fg_color="#F44336", hover_color="#D32F2F",
+                text_color="white",
+                font=ctk.CTkFont(size=14),
+                command=lambda p=file_path: self._confirm_delete_definition(p)
+            )
+            del_btn.pack(side="right", padx=(5, 0))
 
         # Update header checkbox state
         self._update_left_select_all_state()
@@ -735,6 +827,11 @@ class MainWindow(ctk.CTk):
                             # Reconstruct path from key (replace | with \ and ~ with :)
                             path_str = key.replace('|', '\\').replace('~', ':')
                             self._checkbox_states[path_str] = True
+                # Load include_secrets setting into buildings_view
+                if 'Settings' in config:
+                    include_secrets = config['Settings'].get('include_secrets', 'False')
+                    if self.buildings_view and hasattr(self.buildings_view, 'include_secrets_var'):
+                        self.buildings_view.include_secrets_var.set(include_secrets.lower() == 'true')
             except (OSError, configparser.Error) as e:
                 logger.error("Error loading checkbox states: %s", e)
 
@@ -759,6 +856,11 @@ class MainWindow(ctk.CTk):
                 # Convert path to key (replace \ with | and : with ~ to avoid configparser issues)
                 path_key = path_str.replace('\\', '|').replace('/', '|').replace(':', '~')
                 config['Paths'][path_key] = 'true'
+
+        # Save include_secrets checkbox from buildings_view
+        config['Settings'] = {}
+        if self.buildings_view and hasattr(self.buildings_view, 'include_secrets_var'):
+            config['Settings']['include_secrets'] = str(self.buildings_view.include_secrets_var.get())
 
         try:
             with open(ini_path, 'w', encoding='utf-8') as f:
@@ -807,6 +909,27 @@ class MainWindow(ctk.CTk):
 
         # Save states
         self._save_checkbox_states()
+
+    def _confirm_delete_definition(self, path: Path):
+        """Show confirmation dialog before deleting a definition file or directory."""
+        name = path.name
+        is_dir = path.is_dir()
+        item_type = "folder" if is_dir else "file"
+
+        dialog = _ConfirmDefDeleteDialog(self, name, item_type)
+        dialog.wait_window()
+
+        if dialog.result:
+            try:
+                if is_dir:
+                    shutil.rmtree(path)
+                else:
+                    path.unlink()
+                # Refresh the list
+                self._refresh_definitions_list(self.current_definitions_dir)
+                self.set_status_message(f"Deleted {item_type}: {name}")
+            except OSError as e:
+                self.set_status_message(f"Error deleting {name}: {e}", is_error=True)
 
     def _update_left_select_all_state(self):
         """Update the left pane header checkbox to reflect the state of row checkboxes."""
@@ -2456,7 +2579,12 @@ class MainWindow(ctk.CTk):
                 self.update()  # Force UI update
 
             build_manager = BuildManager(progress_callback=progress_callback)
-            success, message = build_manager.build(mod_name, selected)
+            include_secrets = (
+                self.buildings_view.include_secrets_var.get()
+                if self.buildings_view and hasattr(self.buildings_view, 'include_secrets_var')
+                else False
+            )
+            success, message = build_manager.build(mod_name, selected, include_secrets=include_secrets)
 
             # Hide progress bar
             self._hide_build_progress()

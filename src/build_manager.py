@@ -18,7 +18,7 @@ import zipfile
 from pathlib import Path
 from typing import Callable
 
-from src.config import get_output_dir, get_default_mymodfiles_dir, get_utilities_dir
+from src.config import get_appdata_dir, get_output_dir, get_default_mymodfiles_dir, get_utilities_dir
 from src.constants import (
     UE_VERSION,
     RETOC_UE_VERSION,
@@ -45,6 +45,22 @@ class BuildManager:  # pylint: disable=too-few-public-methods
                               for reporting progress.
         """
         self.progress_callback = progress_callback
+        self._setup_build_log()
+
+    def _setup_build_log(self):
+        """Set up a file handler so build logs are saved to build_log.txt."""
+        log_path = get_appdata_dir() / 'build_log.txt'
+        # Remove any previous file handlers on our logger
+        for handler in logger.handlers[:]:
+            if isinstance(handler, logging.FileHandler):
+                logger.removeHandler(handler)
+        file_handler = logging.FileHandler(log_path, mode='w', encoding='utf-8')
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(logging.Formatter(
+            '%(asctime)s [%(levelname)s] %(message)s', datefmt='%H:%M:%S'
+        ))
+        logger.addHandler(file_handler)
+        self._log_path = log_path
 
     def _report_progress(self, message: str, progress: float):
         """Report progress if callback is set.
@@ -57,8 +73,13 @@ class BuildManager:  # pylint: disable=too-few-public-methods
         if self.progress_callback:
             self.progress_callback(message, progress)
 
-    def build(self, mod_name: str, def_files: list[Path]) -> tuple[bool, str]:
+    def build(self, mod_name: str, def_files: list[Path], include_secrets: bool = False) -> tuple[bool, str]:
         """Build a complete mod from definition files.
+
+        Uses a three-phase approach:
+        - Phase A: Copy non-secrets source files to jsonfiles/
+        - Phase B: Overlay secrets manifest files (if any secrets .defs found)
+        - Phase C: Apply all .def changes to the assembled jsonfiles/
 
         Args:
             mod_name: Name of the mod.
@@ -75,9 +96,22 @@ class BuildManager:  # pylint: disable=too-few-public-methods
             self._report_progress("Cleaning previous build files...", 0.0)
             self._clean_build_directories(mod_name)
 
-            # Step 1: Process definition files (5-40%)
-            self._report_progress("Processing definition files...", 0.05)
-            success_count, error_count = self._process_definitions(mod_name, def_files)
+            # Step 1 Phase A: Copy non-secrets source files (5-15%)
+            self._report_progress("Copying source files...", 0.05)
+            uses_secrets = self._phase_a_copy_sources(mod_name, def_files)
+
+            # Also enable secrets if the checkbox was checked
+            if include_secrets:
+                uses_secrets = True
+
+            # Step 1 Phase B: Overlay secrets manifest (15-20%)
+            if uses_secrets:
+                self._report_progress("Overlaying secrets manifest...", 0.15)
+                self._phase_b_overlay_secrets(mod_name)
+
+            # Step 1 Phase C: Apply all .def changes (20-40%)
+            self._report_progress("Applying definition changes...", 0.20)
+            success_count, error_count = self._phase_c_apply_changes(mod_name, def_files)
 
             if error_count > 0:
                 return False, f"{success_count} succeeded, {error_count} failed"
@@ -94,6 +128,11 @@ class BuildManager:  # pylint: disable=too-few-public-methods
             self._report_progress("Packaging mod files...", 0.7)
             if not self._run_retoc(mod_name):
                 return False, "retoc packaging failed"
+
+            # Step 3.5: Copy secrets pak files if applicable (85-90%)
+            if uses_secrets:
+                self._report_progress("Copying secrets pak files...", 0.85)
+                self._copy_secrets_pak_files(mod_name)
 
             # Step 4: Create zip (90-100%)
             self._report_progress("Creating zip file...", 0.9)
@@ -130,8 +169,147 @@ class BuildManager:  # pylint: disable=too-few-public-methods
                 except OSError as e:
                     logger.warning("Could not clean directory %s: %s", dir_path, e)
 
-    def _process_definitions(self, mod_name: str, def_files: list[Path]) -> tuple[int, int]:
-        """Process all definition files and modify JSON.
+    def _phase_a_copy_sources(self, mod_name: str, def_files: list[Path]) -> bool:
+        """Phase A: Copy non-secrets source files to jsonfiles/.
+
+        For each .def file, if the <mod file> path does NOT contain
+        "Secrets Source", copy the source JSON to the build directory.
+        If it does contain "Secrets Source", skip the copy and flag
+        that secrets are in use.
+
+        Args:
+            mod_name: Name of the mod.
+            def_files: List of definition file paths.
+
+        Returns:
+            True if any .def file references Secrets Source.
+        """
+        uses_secrets = False
+        jsondata_dir = get_output_dir() / JSONDATA_DIR
+        mymodfiles_dir = get_default_mymodfiles_dir() / mod_name / JSONFILES_DIR
+
+        for i, def_file in enumerate(def_files):
+            step_progress = 0.05 + (0.10 * (i / len(def_files)))
+            self._report_progress(f"Copying {def_file.name}...", step_progress)
+
+            try:
+                tree = ET.parse(def_file)
+                root = tree.getroot()
+                mod_element = root.find('mod')
+                if mod_element is None:
+                    continue
+
+                mod_file_path = mod_element.get('file', '')
+                if not mod_file_path:
+                    continue
+
+                # Check if this is a secrets file - skip copy
+                if 'Secrets Source' in mod_file_path:
+                    uses_secrets = True
+                    logger.info("Phase A: Skipping secrets file: %s", def_file.name)
+                    continue
+
+                # Normalize and copy non-secrets file
+                normalized_path = mod_file_path.lstrip('\\').lstrip('/').replace('\\', '/')
+                source_file = jsondata_dir / normalized_path
+
+                if not source_file.exists():
+                    logger.warning("Phase A: Source file not found, skipping: %s", normalized_path)
+                    continue
+
+                dest_file = mymodfiles_dir / normalized_path
+                dest_file.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source_file, dest_file)
+                logger.info("Phase A: Copied %s", normalized_path)
+
+            except (ET.ParseError, OSError) as e:
+                logger.error("Phase A: Error processing %s: %s", def_file.name, e)
+
+        return uses_secrets
+
+    def _phase_b_overlay_secrets(self, mod_name: str):
+        """Phase B: Overlay secrets manifest files onto jsonfiles/.
+
+        Reads the secrets manifest.def and copies ALL listed files from
+        Secrets Source/jsondata/ to the build jsonfiles/ directory,
+        overwriting any existing files.
+
+        Args:
+            mod_name: Name of the mod.
+        """
+        manifest_path = get_appdata_dir() / 'Secrets Source' / 'secrets manifest.def'
+        if not manifest_path.exists():
+            logger.info("Phase B: Secrets manifest not found at %s, skipping", manifest_path)
+            return
+
+        secrets_jsondata = get_appdata_dir() / 'Secrets Source' / JSONDATA_DIR
+        mymodfiles_dir = get_default_mymodfiles_dir() / mod_name / JSONFILES_DIR
+
+        try:
+            tree = ET.parse(manifest_path)
+            root = tree.getroot()
+
+            # Parse manifest - look for <mod file="..."> elements
+            file_count = 0
+            for mod_element in root.findall('mod'):
+                file_path = mod_element.get('file', '')
+                if not file_path:
+                    continue
+
+                normalized_path = file_path.lstrip('\\').lstrip('/').replace('\\', '/')
+                source_file = secrets_jsondata / normalized_path
+
+                if not source_file.exists():
+                    logger.warning("Phase B: Manifest file not found: %s", source_file)
+                    continue
+
+                dest_file = mymodfiles_dir / normalized_path
+                dest_file.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source_file, dest_file)
+                file_count += 1
+                logger.info("Phase B: Overlaid secrets file: %s", normalized_path)
+
+            logger.info("Phase B: Copied %d files from secrets manifest", file_count)
+
+        except (ET.ParseError, OSError) as e:
+            logger.error("Phase B: Error processing secrets manifest: %s", e)
+
+    @staticmethod
+    def _normalize_secrets_path(mod_file_path: str) -> str:
+        """Normalize a .def file path, stripping Secrets Source prefix if present.
+
+        Converts a path like "Secrets Source/jsondata/Building/DT_X.json"
+        to "Building/DT_X.json" so it can be found in the jsonfiles/ directory.
+
+        Args:
+            mod_file_path: Raw path from <mod file="..."> attribute.
+
+        Returns:
+            Normalized relative path suitable for jsonfiles/ lookup.
+        """
+        clean_path = mod_file_path.replace('\\', '/')
+
+        # Strip everything up to and including "jsondata/" if Secrets Source is present
+        if 'Secrets Source' in clean_path:
+            for marker in ('jsondata/', 'jsondata\\'):
+                idx = clean_path.find(marker)
+                if idx >= 0:
+                    clean_path = clean_path[idx + len(marker):]
+                    break
+            else:
+                # No jsondata/ found - strip just "Secrets Source/"
+                idx = clean_path.find('Secrets Source/')
+                if idx >= 0:
+                    clean_path = clean_path[idx + len('Secrets Source/'):]
+
+        return clean_path.lstrip('/')
+
+    def _phase_c_apply_changes(self, mod_name: str, def_files: list[Path]) -> tuple[int, int]:
+        """Phase C: Apply all .def changes to the assembled jsonfiles/.
+
+        Processes ALL .def files (both normal and secrets) and applies
+        their <delete> and <change> operations to the target files
+        in jsonfiles/.
 
         Args:
             mod_name: Name of the mod.
@@ -142,124 +320,111 @@ class BuildManager:  # pylint: disable=too-few-public-methods
         """
         success_count = 0
         error_count = 0
-
-        jsondata_dir = get_output_dir() / JSONDATA_DIR
         mymodfiles_dir = get_default_mymodfiles_dir() / mod_name / JSONFILES_DIR
 
         for i, def_file in enumerate(def_files):
-            # Update progress within this step
-            step_progress = 0.0 + (0.4 * (i / len(def_files)))
-            self._report_progress(f"Processing {def_file.name}...", step_progress)
+            step_progress = 0.20 + (0.20 * (i / len(def_files)))
+            self._report_progress(f"Applying changes from {def_file.name}...", step_progress)
 
             try:
-                if self._process_single_definition(def_file, jsondata_dir, mymodfiles_dir):
-                    success_count += 1
-                else:
+                tree = ET.parse(def_file)
+                root = tree.getroot()
+                mod_element = root.find('mod')
+
+                if mod_element is None:
+                    logger.error("Phase C: No <mod> element in %s", def_file.name)
                     error_count += 1
-            except (OSError, ET.ParseError, json.JSONDecodeError) as e:
-                logger.error("Error processing %s: %s", def_file.name, e)
+                    continue
+
+                mod_file_path = mod_element.get('file', '')
+                if not mod_file_path:
+                    logger.error("Phase C: No file attribute in <mod> of %s", def_file.name)
+                    error_count += 1
+                    continue
+
+                # Normalize path (strips Secrets Source prefix if present)
+                normalized_path = self._normalize_secrets_path(mod_file_path)
+                target_file = mymodfiles_dir / normalized_path
+
+                if not target_file.exists():
+                    logger.warning(
+                        "Phase C: Target file not found for %s: %s, skipping",
+                        def_file.name, normalized_path
+                    )
+                    continue
+
+                # Load JSON
+                with open(target_file, 'r', encoding='utf-8') as f:
+                    json_data = json.load(f)
+
+                # Apply delete operations first
+                delete_ops = mod_element.findall('delete')
+                change_ops = mod_element.findall('change')
+                logger.info(
+                    "Phase C: %s -> %s (%d deletes, %d changes)",
+                    def_file.name, normalized_path, len(delete_ops), len(change_ops)
+                )
+
+                for delete in delete_ops:
+                    item_name = delete.get('item', '')
+                    property_path = delete.get('property', '')
+                    value_to_delete = delete.get('value', '')
+
+                    if item_name == 'NONE':
+                        continue
+
+                    if property_path in ('ExcludeItems', 'AllowedItems') and value_to_delete:
+                        logger.info(
+                            "  DELETE: item=%s prop=%s value=%s",
+                            item_name, property_path, value_to_delete
+                        )
+                        self._remove_gameplay_tag(json_data, item_name, property_path, value_to_delete)
+
+                # Apply change operations
+                for change in change_ops:
+                    item_name = change.get('item', '')
+                    property_path = change.get('property', '')
+                    new_value = change.get('value', '')
+
+                    logger.info(
+                        "  CHANGE: item=%s prop=%s value=%s",
+                        item_name, property_path, new_value
+                    )
+
+                    if property_path in ('ExcludeItems', 'AllowedItems'):
+                        if item_name == 'NONE':
+                            continue
+                        original_tag = change.get('original', '')
+                        new_tag = new_value.strip()
+
+                        if original_tag:
+                            self._remove_gameplay_tag(json_data, item_name, property_path, original_tag)
+                        if new_tag:
+                            self._add_gameplay_tag(json_data, item_name, property_path, new_tag)
+                    else:
+                        self._apply_json_change(json_data, item_name, property_path, new_value)
+
+                # Ensure any new FName values are in the NameMap
+                self._sync_namemap(json_data)
+
+                # Save modified JSON
+                with open(target_file, 'w', encoding='utf-8') as f:
+                    json.dump(json_data, f, indent=2, ensure_ascii=False)
+
+                success_count += 1
+                logger.info("Phase C: Applied changes from %s", def_file.name)
+
+            except ET.ParseError as e:
+                logger.error("Phase C: XML parse error in %s: %s", def_file.name, e)
+                error_count += 1
+            except json.JSONDecodeError as e:
+                logger.error("Phase C: JSON parse error for %s: %s", def_file.name, e)
+                error_count += 1
+            except OSError as e:
+                logger.error("Phase C: File error for %s: %s", def_file.name, e)
                 error_count += 1
 
         return success_count, error_count
-
-    def _process_single_definition(
-        self,
-        def_file: Path,
-        jsondata_dir: Path,
-        mymodfiles_dir: Path
-    ) -> bool:
-        """Process a single definition file.
-
-        Args:
-            def_file: Path to the .def file.
-            jsondata_dir: Source JSON data directory.
-            mymodfiles_dir: Destination directory for modified files.
-
-        Returns:
-            True if successful, False otherwise.
-        """
-        try:
-            tree = ET.parse(def_file)
-            root = tree.getroot()
-
-            mod_element = root.find('mod')
-            if mod_element is None:
-                logger.error("No <mod> element in %s", def_file.name)
-                return False
-
-            mod_file_path = mod_element.get('file', '')
-            if not mod_file_path:
-                logger.error("No file attribute in <mod> element of %s", def_file.name)
-                return False
-
-            # Normalize the path
-            normalized_path = mod_file_path.lstrip('\\').lstrip('/').replace('\\', '/')
-
-            # Source and destination files
-            source_file = jsondata_dir / normalized_path
-            if not source_file.exists():
-                logger.error("Source file not found: %s", source_file)
-                return False
-
-            dest_file = mymodfiles_dir / normalized_path
-            dest_file.parent.mkdir(parents=True, exist_ok=True)
-
-            # Copy the file
-            shutil.copy2(source_file, dest_file)
-
-            # Load and modify JSON
-            with open(dest_file, 'r', encoding='utf-8') as f:
-                json_data = json.load(f)
-
-            # Apply delete operations first
-            for delete in mod_element.findall('delete'):
-                item_name = delete.get('item', '')
-                property_path = delete.get('property', '')
-                value_to_delete = delete.get('value', '')
-
-                if item_name == 'NONE':
-                    continue
-
-                # Handle GameplayTagContainer deletions (ExcludeItems, AllowedItems)
-                if property_path in ('ExcludeItems', 'AllowedItems') and value_to_delete:
-                    self._remove_gameplay_tag(json_data, item_name, property_path, value_to_delete)
-
-            # Apply change operations
-            for change in mod_element.findall('change'):
-                item_name = change.get('item', '')
-                property_path = change.get('property', '')
-                new_value = change.get('value', '')
-
-                # Special handling for GameplayTagContainer - replace tag in array
-                if property_path in ('ExcludeItems', 'AllowedItems'):
-                    if item_name == 'NONE':
-                        continue
-                    # 'original' = tag to remove, 'value' = tag to add
-                    original_tag = change.get('original', '')
-                    new_tag = new_value.strip()
-
-                    # Remove the original tag
-                    if original_tag:
-                        self._remove_gameplay_tag(json_data, item_name, property_path, original_tag)
-
-                    # Add the new tag
-                    if new_tag:
-                        self._add_gameplay_tag(json_data, item_name, property_path, new_tag)
-                else:
-                    self._apply_json_change(json_data, item_name, property_path, new_value)
-
-            # Save modified JSON
-            with open(dest_file, 'w', encoding='utf-8') as f:
-                json.dump(json_data, f, indent=2, ensure_ascii=False)
-
-            return True
-
-        except ET.ParseError as e:
-            logger.error("XML parse error in %s: %s", def_file.name, e)
-            return False
-        except json.JSONDecodeError as e:
-            logger.error("JSON parse error: %s", e)
-            return False
 
     def _apply_json_change(
         self,
@@ -615,6 +780,42 @@ class BuildManager:  # pylint: disable=too-few-public-methods
                     )
                 return
 
+    @staticmethod
+    def _sync_namemap(json_data: dict):
+        """Ensure all NamePropertyData values are present in the NameMap.
+
+        UAssetAPI requires every FName referenced in the data to exist in
+        the top-level NameMap. After modifying values, new names may have
+        been introduced that aren't in the map yet.
+        """
+        name_map = json_data.get('NameMap')
+        if not isinstance(name_map, list):
+            return
+
+        name_set = set(name_map)
+        added = []
+
+        def _scan(obj):
+            """Recursively scan for NamePropertyData values."""
+            if isinstance(obj, dict):
+                if 'NamePropertyData' in obj.get('$type', ''):
+                    val = obj.get('Value')
+                    if isinstance(val, str) and val not in name_set:
+                        name_set.add(val)
+                        name_map.append(val)
+                        added.append(val)
+                for v in obj.values():
+                    _scan(v)
+            elif isinstance(obj, list):
+                for item in obj:
+                    _scan(item)
+
+        for export in json_data.get('Exports', []):
+            _scan(export)
+
+        if added:
+            logger.info("NameMap: added %d new entries: %s", len(added), added)
+
     def _convert_json_to_uasset(self, mod_name: str) -> bool:
         """Convert JSON files to uasset format using UAssetGUI.
 
@@ -670,7 +871,12 @@ class BuildManager:  # pylint: disable=too-few-public-methods
                 )
 
                 if result.returncode != 0 or not uasset_file.exists():
-                    logger.error("Failed to convert %s: %s", json_file.name, result.stderr)
+                    logger.error(
+                        "Failed to convert %s:\n  returncode=%s\n  stdout=%s\n  stderr=%s",
+                        json_file.name, result.returncode,
+                        result.stdout.strip() if result.stdout else "(empty)",
+                        result.stderr.strip() if result.stderr else "(empty)"
+                    )
                     return False
 
             except subprocess.TimeoutExpired:
@@ -737,6 +943,46 @@ class BuildManager:  # pylint: disable=too-few-public-methods
         except OSError as e:
             logger.error("Error running retoc: %s", e)
             return False
+
+    def _copy_secrets_pak_files(self, mod_name: str):
+        """Copy secrets pak/ucas/utoc files into the finalmod directory.
+
+        Searches Secrets Source/ recursively for specific pak files
+        and copies them into the mod_P directory alongside the retoc output.
+
+        Args:
+            mod_name: Name of the mod.
+        """
+        secrets_dir = get_appdata_dir() / 'Secrets Source'
+        if not secrets_dir.exists():
+            logger.warning("Secrets Source directory not found, skipping pak copy")
+            return
+
+        target_files = {
+            'SecretsOfKhazadDum_Localization_P.pak',
+            'TobiModsAddons_P.pak',
+            'TobiModsAddons_P.ucas',
+            'TobiModsAddons_P.utoc',
+        }
+
+        mymodfiles_base = get_default_mymodfiles_dir() / mod_name
+        mod_p_dir = mymodfiles_base / FINALMOD_DIR / f'{mod_name}_P'
+        mod_p_dir.mkdir(parents=True, exist_ok=True)
+
+        found = 0
+        for target_name in target_files:
+            # Search recursively for the file
+            matches = list(secrets_dir.rglob(target_name))
+            if matches:
+                source = matches[0]
+                dest = mod_p_dir / target_name
+                shutil.copy2(source, dest)
+                found += 1
+                logger.info("Copied secrets file: %s -> %s", source, dest)
+            else:
+                logger.warning("Secrets file not found: %s", target_name)
+
+        logger.info("Copied %d of %d secrets pak files", found, len(target_files))
 
     def _create_zip(self, mod_name: str) -> Path | None:
         """Create a zip file of the mod in Downloads folder.

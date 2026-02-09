@@ -61,6 +61,11 @@ class UtilityCheckDialog(ctk.CTkToplevel):
         self.transient(parent)
         self.grab_set()
 
+        # Set application icon
+        icon_path = Path(__file__).parent.parent.parent / "assets" / "icons" / "application icons" / "app_icon.ico"
+        if icon_path.exists():
+            self.after(10, lambda: self.iconbitmap(str(icon_path)))
+
         # Center the dialog on screen
         self.update_idletasks()
         x = (self.winfo_screenwidth() - 500) // 2

@@ -33,7 +33,10 @@ from typing import Callable, Optional
 
 import customtkinter as ctk
 
-from src.config import get_appdata_dir, get_buildings_dir, get_constructions_dir
+from src.config import (
+    get_appdata_dir, get_buildings_dir, get_constructions_dir,
+    get_default_changesecrets_dir,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -866,6 +869,417 @@ def extract_construction_fields(construction_json: dict) -> dict:
 
 
 # =============================================================================
+# PER-TYPE EXTRACT FUNCTIONS
+# =============================================================================
+
+def _extract_handle_rowname(prop: dict) -> str:
+    """Extract RowName from a handle struct (MorAnyItemRowHandle etc.)."""
+    for inner in prop.get("Value", []):
+        if inner.get("Name") == "RowName":
+            return inner.get("Value", "")
+    return ""
+
+
+def _extract_tag_names(prop: dict) -> list[str]:
+    """Extract tag names from a GameplayTagContainer struct."""
+    for inner in prop.get("Value", []):
+        if inner.get("Name") == "Tags" or inner.get("Name") == prop.get("Name", ""):
+            val = inner.get("Value", [])
+            if isinstance(val, list):
+                return [v for v in val if isinstance(v, str)]
+    return []
+
+
+def _extract_soft_object_path(prop: dict) -> str:
+    """Extract asset path from a SoftObjectPropertyData."""
+    val = prop.get("Value", {})
+    if isinstance(val, dict):
+        asset_path = val.get("AssetPath", {})
+        return asset_path.get("AssetName", "")
+    return ""
+
+
+def _extract_repair_cost(prop: dict) -> list[dict]:
+    """Extract InitialRepairCost array into [{Material, Amount}] list."""
+    materials = []
+    for mat_entry in prop.get("Value", []):
+        mat_name = ""
+        mat_count = 1
+        for mat_prop in mat_entry.get("Value", []):
+            if mat_prop.get("Name") == "MaterialHandle":
+                for handle_prop in mat_prop.get("Value", []):
+                    if handle_prop.get("Name") == "RowName":
+                        mat_name = handle_prop.get("Value", "")
+            elif mat_prop.get("Name") == "Count":
+                mat_count = mat_prop.get("Value", 1)
+        if mat_name:
+            materials.append({"Material": mat_name, "Amount": mat_count})
+    return materials
+
+
+def extract_weapon_fields(weapon_json: dict) -> dict:
+    """Extract editable fields from MorWeaponDefinition JSON."""
+    fields = {
+        "Name": weapon_json.get("Name", ""),
+        "DamageType": "",
+        "Durability": 0, "Tier": 1, "Damage": 0,
+        "Speed": 1.0, "ArmorPenetration": 0.0,
+        "StaminaCost": 0.0, "EnergyCost": 0.0,
+        "BlockDamageReduction": 0.0,
+        "InitialRepairCost": [],
+        "DisplayName": "", "Description": "",
+        "Icon": "", "Actor": "",
+        "Tags": [],
+        "Portability": "EItemPortability::Storable",
+        "MaxStackSize": 1, "SlotSize": 1,
+        "BaseTradeValue": 0.0,
+        "EnabledState": "ERowEnabledState::Live",
+    }
+    for prop in weapon_json.get("Value", []):
+        name = prop.get("Name", "")
+        ptype = prop.get("$type", "")
+        if name == "DamageType":
+            for inner in prop.get("Value", []):
+                if inner.get("Name") == "TagName":
+                    fields["DamageType"] = inner.get("Value", "")
+        elif name == "InitialRepairCost":
+            fields["InitialRepairCost"] = _extract_repair_cost(prop)
+        elif name == "Tags" and "StructPropertyData" in ptype:
+            fields["Tags"] = _extract_tag_names(prop)
+        elif name in ("Icon", "Actor") and "SoftObjectPropertyData" in ptype:
+            fields[name] = _extract_soft_object_path(prop)
+        elif name == "DisplayName" and "TextPropertyData" in ptype:
+            fields["DisplayName"] = prop.get("Value", "")
+        elif name == "Description" and "TextPropertyData" in ptype:
+            fields["Description"] = prop.get("Value", "")
+        elif "EnumPropertyData" in ptype:
+            fields[name] = prop.get("Value", "")
+        elif "BoolPropertyData" in ptype:
+            fields[name] = prop.get("Value", False)
+        elif "FloatPropertyData" in ptype:
+            val = prop.get("Value", 0.0)
+            fields[name] = float(val) if not isinstance(val, str) else 0.0
+        elif "IntPropertyData" in ptype:
+            fields[name] = prop.get("Value", 0)
+        elif "BytePropertyData" in ptype and name == "Tier":
+            fields["Tier"] = prop.get("Value", 1)
+    return fields
+
+
+def extract_armor_fields(armor_json: dict) -> dict:
+    """Extract editable fields from MorArmorDefinition JSON."""
+    fields = {
+        "Name": armor_json.get("Name", ""),
+        "Durability": 0,
+        "DamageReduction": 0.0, "DamageProtection": 0.0,
+        "InitialRepairCost": [],
+        "DisplayName": "", "Description": "",
+        "Icon": "", "Actor": "",
+        "Tags": [],
+        "Portability": "EItemPortability::Storable",
+        "MaxStackSize": 1, "SlotSize": 1,
+        "BaseTradeValue": 0.0,
+        "EnabledState": "ERowEnabledState::Live",
+    }
+    for prop in armor_json.get("Value", []):
+        name = prop.get("Name", "")
+        ptype = prop.get("$type", "")
+        if name == "InitialRepairCost":
+            fields["InitialRepairCost"] = _extract_repair_cost(prop)
+        elif name == "Tags" and "StructPropertyData" in ptype:
+            fields["Tags"] = _extract_tag_names(prop)
+        elif name in ("Icon", "Actor") and "SoftObjectPropertyData" in ptype:
+            fields[name] = _extract_soft_object_path(prop)
+        elif name == "DisplayName" and "TextPropertyData" in ptype:
+            fields["DisplayName"] = prop.get("Value", "")
+        elif name == "Description" and "TextPropertyData" in ptype:
+            fields["Description"] = prop.get("Value", "")
+        elif "EnumPropertyData" in ptype:
+            fields[name] = prop.get("Value", "")
+        elif "BoolPropertyData" in ptype:
+            fields[name] = prop.get("Value", False)
+        elif "FloatPropertyData" in ptype:
+            val = prop.get("Value", 0.0)
+            fields[name] = float(val) if not isinstance(val, str) else 0.0
+        elif "IntPropertyData" in ptype:
+            fields[name] = prop.get("Value", 0)
+    return fields
+
+
+def extract_tool_fields(tool_json: dict) -> dict:
+    """Extract editable fields from MorToolDefinition JSON."""
+    fields = {
+        "Name": tool_json.get("Name", ""),
+        "Durability": 0,
+        "DurabilityDecayWhileEquipped": 0.0,
+        "StaminaCost": 0.0, "EnergyCost": 0.0,
+        "CarveHits": 0, "NpcMiningRate": 0.0,
+        "InitialRepairCost": [],
+        "DisplayName": "", "Description": "",
+        "Icon": "", "Actor": "",
+        "Tags": [],
+        "Portability": "EItemPortability::Storable",
+        "MaxStackSize": 1, "SlotSize": 1,
+        "BaseTradeValue": 0.0,
+        "EnabledState": "ERowEnabledState::Live",
+    }
+    for prop in tool_json.get("Value", []):
+        name = prop.get("Name", "")
+        ptype = prop.get("$type", "")
+        if name == "InitialRepairCost":
+            fields["InitialRepairCost"] = _extract_repair_cost(prop)
+        elif name == "Tags" and "StructPropertyData" in ptype:
+            fields["Tags"] = _extract_tag_names(prop)
+        elif name in ("Icon", "Actor") and "SoftObjectPropertyData" in ptype:
+            fields[name] = _extract_soft_object_path(prop)
+        elif name == "DisplayName" and "TextPropertyData" in ptype:
+            fields["DisplayName"] = prop.get("Value", "")
+        elif name == "Description" and "TextPropertyData" in ptype:
+            fields["Description"] = prop.get("Value", "")
+        elif "EnumPropertyData" in ptype:
+            fields[name] = prop.get("Value", "")
+        elif "BoolPropertyData" in ptype:
+            fields[name] = prop.get("Value", False)
+        elif "FloatPropertyData" in ptype:
+            val = prop.get("Value", 0.0)
+            fields[name] = float(val) if not isinstance(val, str) else 0.0
+        elif "IntPropertyData" in ptype:
+            fields[name] = prop.get("Value", 0)
+    return fields
+
+
+def extract_item_fields(item_json: dict) -> dict:
+    """Extract editable fields from MorItemDefinition JSON."""
+    fields = {
+        "Name": item_json.get("Name", ""),
+        "DisplayName": "", "Description": "",
+        "Icon": "", "Actor": "",
+        "Tags": [],
+        "Portability": "EItemPortability::Storable",
+        "MaxStackSize": 1, "SlotSize": 1,
+        "BaseTradeValue": 0.0,
+        "EnabledState": "ERowEnabledState::Live",
+    }
+    for prop in item_json.get("Value", []):
+        name = prop.get("Name", "")
+        ptype = prop.get("$type", "")
+        if name == "Tags" and "StructPropertyData" in ptype:
+            fields["Tags"] = _extract_tag_names(prop)
+        elif name in ("Icon", "Actor") and "SoftObjectPropertyData" in ptype:
+            fields[name] = _extract_soft_object_path(prop)
+        elif name == "DisplayName" and "TextPropertyData" in ptype:
+            fields["DisplayName"] = prop.get("Value", "")
+        elif name == "Description" and "TextPropertyData" in ptype:
+            fields["Description"] = prop.get("Value", "")
+        elif "EnumPropertyData" in ptype:
+            fields[name] = prop.get("Value", "")
+        elif "BoolPropertyData" in ptype:
+            fields[name] = prop.get("Value", False)
+        elif "FloatPropertyData" in ptype:
+            val = prop.get("Value", 0.0)
+            fields[name] = float(val) if not isinstance(val, str) else 0.0
+        elif "IntPropertyData" in ptype:
+            fields[name] = prop.get("Value", 0)
+    return fields
+
+
+def extract_flora_fields(flora_json: dict) -> dict:
+    """Extract editable fields from MorFloraReceptacleDefinition JSON."""
+    fields = {
+        "Name": flora_json.get("Name", ""),
+        "DisplayName": "",
+        "ItemRowHandle": "", "OverrideItemDropHandle": "",
+        "MinCount": 1, "MaxCount": 1,
+        "NumToGrowPerCycle": 1, "RegrowthSleepCount": 1,
+        "TimeUntilGrowingStage": 0, "TimeUntilReadyStage": 0,
+        "TimeUntilSpoiledStage": 0,
+        "MinVariableGrowthTime": 0, "MaxVariableGrowthTime": 0,
+        "bPrefersInShade": False, "MinimumFarmingLight": 0.0,
+        "bCanSpoil": False,
+        "FloraType": "EMorFarmingFloraType::Flora",
+        "GrowthRate": "EMorFarmingFloraGrowthRate::None",
+        "IsPlantable": False, "IsFungus": False,
+        "MinRandomScale": 1.0, "MaxRandomScale": 1.0,
+        "ReceptacleActorToSpawn": "",
+        "EnabledState": "ERowEnabledState::Live",
+    }
+    for prop in flora_json.get("Value", []):
+        name = prop.get("Name", "")
+        ptype = prop.get("$type", "")
+        if name in ("ItemRowHandle", "OverrideItemDropHandle"):
+            fields[name] = _extract_handle_rowname(prop)
+        elif name == "ReceptacleActorToSpawn" and "SoftObjectPropertyData" in ptype:
+            fields[name] = _extract_soft_object_path(prop)
+        elif name == "DisplayName" and "TextPropertyData" in ptype:
+            fields["DisplayName"] = prop.get("Value", "")
+        elif "EnumPropertyData" in ptype:
+            fields[name] = prop.get("Value", "")
+        elif "BoolPropertyData" in ptype:
+            fields[name] = prop.get("Value", False)
+        elif "FloatPropertyData" in ptype:
+            val = prop.get("Value", 0.0)
+            fields[name] = float(val) if not isinstance(val, str) else 0.0
+        elif "IntPropertyData" in ptype:
+            fields[name] = prop.get("Value", 0)
+    return fields
+
+
+def extract_loot_fields(loot_json: dict) -> dict:
+    """Extract editable fields from MorLootRowDefinition JSON."""
+    fields = {
+        "Name": loot_json.get("Name", ""),
+        "RequiredTags": [],
+        "ItemHandle": "",
+        "DropChance": 1.0,
+        "MinQuantity": 1, "MaxQuantity": 1,
+        "EnabledState": "ERowEnabledState::Live",
+    }
+    for prop in loot_json.get("Value", []):
+        name = prop.get("Name", "")
+        ptype = prop.get("$type", "")
+        if name == "RequiredTags" and "StructPropertyData" in ptype:
+            fields["RequiredTags"] = _extract_tag_names(prop)
+        elif name == "ItemHandle":
+            fields["ItemHandle"] = _extract_handle_rowname(prop)
+        elif name == "DropChance" and "FloatPropertyData" in ptype:
+            val = prop.get("Value", 1.0)
+            fields["DropChance"] = float(val) if not isinstance(val, str) else 1.0
+        elif "EnumPropertyData" in ptype:
+            fields[name] = prop.get("Value", "")
+        elif "IntPropertyData" in ptype:
+            fields[name] = prop.get("Value", 0)
+    return fields
+
+
+def extract_item_recipe_fields(recipe_json: dict) -> dict:
+    """Extract editable fields from MorItemRecipeDefinition JSON.
+
+    Similar to extract_recipe_fields but for item recipes (weapons, armor,
+    tools, items). Does NOT include building-specific fields like BuildProcess,
+    PlacementType, LocationRequirement, etc.
+    """
+    fields = {
+        "Name": recipe_json.get("Name", ""),
+        "ResultItemHandle": "",
+        "ResultItemCount": 1,
+        "CraftTimeSeconds": 0.0,
+        "bCanBePinned": True,
+        "bNpcOnlyRecipe": False,
+        "bHasSandboxRequirementsOverride": False,
+        "bHasSandboxUnlockOverride": False,
+        "EnabledState": "ERowEnabledState::Live",
+        "Materials": [],
+        "DefaultRequiredConstructions": [],
+        "DefaultUnlocks_UnlockType": "EMorRecipeUnlockType::Manual",
+        "DefaultUnlocks_NumFragments": 1,
+        "DefaultUnlocks_RequiredItems": [],
+        "DefaultUnlocks_RequiredConstructions": [],
+        "DefaultUnlocks_RequiredFragments": [],
+        "SandboxUnlocks_UnlockType": "EMorRecipeUnlockType::Manual",
+        "SandboxUnlocks_NumFragments": 1,
+        "SandboxUnlocks_RequiredItems": [],
+        "SandboxUnlocks_RequiredConstructions": [],
+        "SandboxUnlocks_RequiredFragments": [],
+        "SandboxRequiredMaterials": [],
+        "SandboxRequiredConstructions": [],
+    }
+
+    for prop in recipe_json.get("Value", []):
+        prop_name = prop.get("Name", "")
+        prop_type = prop.get("$type", "")
+
+        if "EnumPropertyData" in prop_type:
+            fields[prop_name] = prop.get("Value", "")
+        elif "BoolPropertyData" in prop_type:
+            fields[prop_name] = prop.get("Value", False)
+        elif "FloatPropertyData" in prop_type:
+            val = prop.get("Value", 0.0)
+            fields[prop_name] = float(val) if not isinstance(val, str) else 0.0
+        elif "IntPropertyData" in prop_type:
+            fields[prop_name] = prop.get("Value", 0)
+        elif prop_name == "ResultItemHandle":
+            fields["ResultItemHandle"] = _extract_handle_rowname(prop)
+        elif prop_name == "DefaultUnlocks":
+            for unlock_prop in prop.get("Value", []):
+                uname = unlock_prop.get("Name", "")
+                utype = unlock_prop.get("$type", "")
+                if uname == "UnlockType" and "EnumPropertyData" in utype:
+                    fields["DefaultUnlocks_UnlockType"] = unlock_prop.get("Value", "")
+                elif uname == "NumFragments":
+                    fields["DefaultUnlocks_NumFragments"] = unlock_prop.get("Value", 1)
+                elif uname == "UnlockRequiredItems":
+                    items = []
+                    for entry in unlock_prop.get("Value", []):
+                        for ep in entry.get("Value", []):
+                            if ep.get("Name") == "RowName":
+                                items.append(ep.get("Value", ""))
+                    fields["DefaultUnlocks_RequiredItems"] = items
+                elif uname == "UnlockRequiredConstructions":
+                    consts = []
+                    for entry in unlock_prop.get("Value", []):
+                        for ep in entry.get("Value", []):
+                            if ep.get("Name") == "RowName":
+                                consts.append(ep.get("Value", ""))
+                    fields["DefaultUnlocks_RequiredConstructions"] = consts
+                elif uname == "UnlockRequiredFragments":
+                    frags = []
+                    for entry in unlock_prop.get("Value", []):
+                        for ep in entry.get("Value", []):
+                            if ep.get("Name") == "RowName":
+                                frags.append(ep.get("Value", ""))
+                    fields["DefaultUnlocks_RequiredFragments"] = frags
+        elif prop_name == "SandboxUnlocks":
+            for unlock_prop in prop.get("Value", []):
+                uname = unlock_prop.get("Name", "")
+                utype = unlock_prop.get("$type", "")
+                if uname == "UnlockType" and "EnumPropertyData" in utype:
+                    fields["SandboxUnlocks_UnlockType"] = unlock_prop.get("Value", "")
+                elif uname == "NumFragments":
+                    fields["SandboxUnlocks_NumFragments"] = unlock_prop.get("Value", 1)
+                elif uname == "UnlockRequiredItems":
+                    items = []
+                    for entry in unlock_prop.get("Value", []):
+                        for ep in entry.get("Value", []):
+                            if ep.get("Name") == "RowName":
+                                items.append(ep.get("Value", ""))
+                    fields["SandboxUnlocks_RequiredItems"] = items
+                elif uname == "UnlockRequiredConstructions":
+                    consts = []
+                    for entry in unlock_prop.get("Value", []):
+                        for ep in entry.get("Value", []):
+                            if ep.get("Name") == "RowName":
+                                consts.append(ep.get("Value", ""))
+                    fields["SandboxUnlocks_RequiredConstructions"] = consts
+                elif uname == "UnlockRequiredFragments":
+                    frags = []
+                    for entry in unlock_prop.get("Value", []):
+                        for ep in entry.get("Value", []):
+                            if ep.get("Name") == "RowName":
+                                frags.append(ep.get("Value", ""))
+                    fields["SandboxUnlocks_RequiredFragments"] = frags
+        elif prop_name == "DefaultRequiredMaterials":
+            fields["Materials"] = _extract_repair_cost(prop)
+        elif prop_name == "DefaultRequiredConstructions":
+            consts = []
+            for entry in prop.get("Value", []):
+                for ep in entry.get("Value", []):
+                    if ep.get("Name") == "RowName":
+                        consts.append(ep.get("Value", ""))
+            fields["DefaultRequiredConstructions"] = consts
+        elif prop_name == "SandboxRequiredMaterials":
+            fields["SandboxRequiredMaterials"] = _extract_repair_cost(prop)
+        elif prop_name == "SandboxRequiredConstructions":
+            consts = []
+            for entry in prop.get("Value", []):
+                for ep in entry.get("Value", []):
+                    if ep.get("Name") == "RowName":
+                        consts.append(ep.get("Value", ""))
+            fields["SandboxRequiredConstructions"] = consts
+
+    return fields
+
+
+# =============================================================================
 # AUTOCOMPLETE WIDGET
 # =============================================================================
 
@@ -1114,6 +1528,244 @@ class AutocompleteEntry(ctk.CTkFrame):
 # =============================================================================
 
 
+class _ConfirmSecretsDeleteDialog(ctk.CTkToplevel):
+    """Confirmation dialog for deleting a change secrets set."""
+
+    def __init__(self, parent, prefix_name: str):
+        super().__init__(parent)
+
+        self.title("Confirm Delete")
+        self.geometry("380x150")
+        self.resizable(False, False)
+        self.result = False
+
+        self.transient(parent)
+        self.grab_set()
+
+        icon_path = Path(__file__).parent.parent.parent / "assets" / "icons" / "application icons" / "app_icon.ico"
+        if icon_path.exists():
+            self.after(10, lambda: self.iconbitmap(str(icon_path)))
+
+        self.update_idletasks()
+        x = (self.winfo_screenwidth() - 380) // 2
+        y = (self.winfo_screenheight() - 150) // 2
+        self.geometry(f"380x150+{x}+{y}")
+
+        self.protocol("WM_DELETE_WINDOW", self._on_cancel)
+
+        main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        ctk.CTkLabel(
+            main_frame,
+            text=f"Delete change set '{prefix_name}' and all its files?",
+            font=ctk.CTkFont(size=14),
+            wraplength=340
+        ).pack(pady=(0, 20))
+
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        btn_frame.pack(fill="x")
+
+        ctk.CTkButton(
+            btn_frame, text="Cancel",
+            fg_color="#F44336", hover_color="#D32F2F",
+            text_color="white", font=ctk.CTkFont(weight="bold"),
+            width=100, command=self._on_cancel
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            btn_frame, text="OK",
+            fg_color="#4CAF50", hover_color="#388E3C",
+            text_color="white", font=ctk.CTkFont(weight="bold"),
+            width=100, command=self._on_ok
+        ).pack(side="right")
+
+    def _on_cancel(self):
+        self.result = False
+        self.destroy()
+
+    def _on_ok(self):
+        self.result = True
+        self.destroy()
+
+
+class _ChangeSecretsDialog(ctk.CTkToplevel):
+    """Dialog for selecting or creating a secrets change set prefix."""
+
+    def __init__(self, parent, current_prefix: str = ""):
+        super().__init__(parent)
+
+        self.title("Change Secrets")
+        self.geometry("450x420")
+        self.resizable(False, False)
+
+        self.result = None
+
+        self.transient(parent)
+        self.grab_set()
+
+        icon_path = Path(__file__).parent.parent.parent / "assets" / "icons" / "application icons" / "app_icon.ico"
+        if icon_path.exists():
+            self.after(10, lambda: self.iconbitmap(str(icon_path)))
+
+        self.update_idletasks()
+        x = (self.winfo_screenwidth() - 450) // 2
+        y = (self.winfo_screenheight() - 420) // 2
+        self.geometry(f"450x420+{x}+{y}")
+
+        self._current_prefix = current_prefix
+        self._create_widgets()
+
+        self.protocol("WM_DELETE_WINDOW", self._on_cancel)
+
+    def _get_existing_prefixes(self) -> list[str]:
+        """Get list of existing change secrets directories."""
+        secrets_dir = get_default_changesecrets_dir()
+        if not secrets_dir.exists():
+            return []
+        return sorted(item.name for item in secrets_dir.iterdir() if item.is_dir())
+
+    def _create_widgets(self):
+        """Create the dialog widgets."""
+        main_frame = ctk.CTkFrame(self, fg_color="transparent")
+        main_frame.pack(fill="both", expand=True, padx=20, pady=20)
+
+        main_frame.grid_columnconfigure(0, weight=1)
+        main_frame.grid_rowconfigure(2, weight=1)
+
+        # Existing change sets section
+        ctk.CTkLabel(
+            main_frame,
+            text="Change Secrets:",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            anchor="w"
+        ).grid(row=0, column=0, sticky="w", pady=(0, 5))
+
+        self.prefix_list_frame = ctk.CTkScrollableFrame(main_frame, height=150)
+        self.prefix_list_frame.grid(row=1, column=0, sticky="nsew", pady=(0, 10))
+
+        self._refresh_prefix_list()
+
+        # Prefix name section
+        prefix_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        prefix_frame.grid(row=2, column=0, sticky="sew", pady=(10, 0))
+        prefix_frame.grid_columnconfigure(1, weight=1)
+
+        ctk.CTkLabel(
+            prefix_frame,
+            text="Change Secret Prefix:",
+            font=ctk.CTkFont(size=14, weight="bold")
+        ).grid(row=0, column=0, sticky="w", padx=(0, 10))
+
+        self.prefix_var = ctk.StringVar(value=self._current_prefix)
+        self.prefix_entry = ctk.CTkEntry(
+            prefix_frame,
+            textvariable=self.prefix_var,
+            font=ctk.CTkFont(size=14),
+            placeholder_text="Enter prefix name..."
+        )
+        self.prefix_entry.grid(row=0, column=1, sticky="ew")
+
+        # Button frame
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        btn_frame.grid(row=3, column=0, sticky="ew", pady=(15, 0))
+
+        ctk.CTkButton(
+            btn_frame, text="Cancel",
+            fg_color="#F44336", hover_color="#D32F2F",
+            text_color="white", font=ctk.CTkFont(weight="bold"),
+            width=100, command=self._on_cancel
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            btn_frame, text="Apply",
+            fg_color="#4CAF50", hover_color="#388E3C",
+            text_color="white", font=ctk.CTkFont(weight="bold"),
+            width=100, command=self._on_apply
+        ).pack(side="right")
+
+        self.prefix_entry.bind("<Return>", lambda e: self._on_apply())
+
+    def _refresh_prefix_list(self):
+        """Refresh the prefix list display."""
+        for widget in self.prefix_list_frame.winfo_children():
+            widget.destroy()
+
+        prefixes = self._get_existing_prefixes()
+        if prefixes:
+            for prefix_name in prefixes:
+                row = ctk.CTkFrame(self.prefix_list_frame, fg_color="transparent")
+                row.pack(fill="x", pady=2)
+
+                ctk.CTkButton(
+                    row,
+                    text=prefix_name,
+                    fg_color="transparent",
+                    hover_color=("gray75", "gray25"),
+                    text_color=("gray10", "gray90"),
+                    anchor="w",
+                    command=lambda p=prefix_name: self._select_prefix(p)
+                ).pack(side="left", fill="x", expand=True)
+
+                ctk.CTkButton(
+                    row,
+                    text="\U0001F5D1",
+                    width=28, height=28,
+                    fg_color="#F44336", hover_color="#D32F2F",
+                    text_color="white",
+                    font=ctk.CTkFont(size=14),
+                    command=lambda p=prefix_name: self._confirm_delete_prefix(p)
+                ).pack(side="right", padx=(5, 0))
+        else:
+            ctk.CTkLabel(
+                self.prefix_list_frame,
+                text="No existing change sets found",
+                text_color="gray"
+            ).pack(pady=10)
+
+    def _select_prefix(self, prefix_name: str):
+        """Select an existing prefix from the list."""
+        self.prefix_var.set(prefix_name)
+        self.prefix_entry.focus_set()
+
+    def _confirm_delete_prefix(self, prefix_name: str):
+        """Show confirmation dialog before deleting a change set."""
+        confirm = _ConfirmSecretsDeleteDialog(self, prefix_name)
+        confirm.wait_window()
+        if confirm.result:
+            prefix_dir = get_default_changesecrets_dir() / prefix_name
+            if prefix_dir.exists():
+                shutil.rmtree(prefix_dir)
+            if self.prefix_var.get() == prefix_name:
+                self.prefix_var.set("")
+            self._refresh_prefix_list()
+
+    def _on_cancel(self):
+        self.result = None
+        self.destroy()
+
+    def _on_apply(self):
+        prefix_name = self.prefix_var.get().strip()
+        if not prefix_name:
+            self.prefix_entry.configure(border_color="red")
+            return
+
+        invalid_chars = '<>:"/\\|?*'
+        if any(c in prefix_name for c in invalid_chars):
+            self.prefix_entry.configure(border_color="red")
+            return
+
+        # Create the change set directory
+        secrets_dir = get_default_changesecrets_dir()
+        prefix_dir = secrets_dir / prefix_name
+        try:
+            prefix_dir.mkdir(parents=True, exist_ok=True)
+            self.result = prefix_name
+            self.destroy()
+        except OSError:
+            self.prefix_entry.configure(border_color="red")
+
+
 class BuildingsView(ctk.CTkFrame):
     """
     Main view for managing building/construction objects from .def files.
@@ -1191,8 +1843,6 @@ class BuildingsView(ctk.CTkFrame):
         self.current_construction_pack = None
 
         # Construction name entry for bulk build operations
-        self.construction_name_var = None
-        self.construction_name_entry = None
 
         # View mode: 'definitions' (default .def files), 'buildings', 'weapons', 'armor'
         self.view_mode = 'definitions'
@@ -1222,6 +1872,8 @@ class BuildingsView(ctk.CTkFrame):
         self.footer_revert_btn = None
 
         self._create_widgets()
+        # Load persisted secrets prefix
+        self._load_secrets_prefix()
         # Defer scan until after main window is fully initialized
         self.after(100, self._scan_and_refresh)
 
@@ -1334,62 +1986,103 @@ class BuildingsView(ctk.CTkFrame):
         list_frame = ctk.CTkFrame(self)
         list_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
 
-        # Button row for category filters (BUILDINGS, WEAPONS, ARMOR) + refresh
-        btn_row = ctk.CTkFrame(list_frame, fg_color="transparent")
-        btn_row.pack(fill="x", padx=10, pady=(10, 5))
-        btn_row.grid_columnconfigure(0, weight=1)
-        btn_row.grid_columnconfigure(1, weight=1)
-        btn_row.grid_columnconfigure(2, weight=1)
-        btn_row.grid_columnconfigure(3, weight=0)  # Refresh icon, fixed width
+        # Top row: "Include Secret Constructions" checkbox + Refresh button
+        top_row = ctk.CTkFrame(list_frame, fg_color="transparent")
+        top_row.pack(fill="x", padx=10, pady=(10, 2))
 
-        # Buildings button
+        self.include_secrets_var = ctk.BooleanVar(value=False)
+        self.include_secrets_cb = ctk.CTkCheckBox(
+            top_row, text="Include Secret Constructions",
+            variable=self.include_secrets_var,
+            font=ctk.CTkFont(size=12),
+        )
+        self.include_secrets_cb.pack(side="left")
+
+        refresh_btn = ctk.CTkButton(
+            top_row, text="↻", width=28, height=28,
+            font=ctk.CTkFont(size=16),
+            fg_color="transparent", hover_color=("gray75", "gray25"),
+            command=self._on_refresh_cache_click
+        )
+        refresh_btn.pack(side="right")
+
+        # Button rows for category filters
+        btn_container = ctk.CTkFrame(list_frame, fg_color="transparent")
+        btn_container.pack(fill="x", padx=10, pady=(5, 5))
+
+        # Row 1: Buildings, Weapons, Armor
+        btn_row1 = ctk.CTkFrame(btn_container, fg_color="transparent")
+        btn_row1.pack(fill="x")
+        for col in range(3):
+            btn_row1.grid_columnconfigure(col, weight=1)
+
         self.buildings_btn = ctk.CTkButton(
-            btn_row,
-            text="Buildings",
-            height=32,
-            fg_color="#2196F3",
-            hover_color="#1976D2",
+            btn_row1, text="Buildings", height=28,
+            fg_color="#2196F3", hover_color="#1976D2",
             font=ctk.CTkFont(weight="bold"),
             command=self._load_secrets_buildings
         )
         self.buildings_btn.grid(row=0, column=0, sticky="ew", padx=(0, 2))
 
-        # Weapons button
         self.weapons_btn = ctk.CTkButton(
-            btn_row,
-            text="Weapons",
-            height=32,
-            fg_color="#9C27B0",
-            hover_color="#7B1FA2",
+            btn_row1, text="Weapons", height=28,
+            fg_color="#9C27B0", hover_color="#7B1FA2",
             font=ctk.CTkFont(weight="bold"),
             command=self._load_secrets_weapons
         )
         self.weapons_btn.grid(row=0, column=1, sticky="ew", padx=2)
 
-        # Armor button
         self.armor_btn = ctk.CTkButton(
-            btn_row,
-            text="Armor",
-            height=32,
-            fg_color="#FF9800",
-            hover_color="#F57C00",
+            btn_row1, text="Armor", height=28,
+            fg_color="#FF9800", hover_color="#F57C00",
             font=ctk.CTkFont(weight="bold"),
             command=self._load_secrets_armor
         )
         self.armor_btn.grid(row=0, column=2, sticky="ew", padx=2)
 
-        # Refresh button (symbol only) - deletes cache and re-copies from Secrets Source
-        refresh_btn = ctk.CTkButton(
-            btn_row,
-            text="↻",
-            width=32,
-            height=32,
-            font=ctk.CTkFont(size=16),
-            fg_color="transparent",
-            hover_color=("gray75", "gray25"),
-            command=self._on_refresh_cache_click
+        # Row 2: Tools, Flora
+        btn_row2 = ctk.CTkFrame(btn_container, fg_color="transparent")
+        btn_row2.pack(fill="x", pady=(2, 0))
+        btn_row2.grid_columnconfigure(0, weight=1)
+        btn_row2.grid_columnconfigure(1, weight=1)
+
+        self.tools_btn = ctk.CTkButton(
+            btn_row2, text="Tools", height=28,
+            fg_color="#00897B", hover_color="#00695C",
+            font=ctk.CTkFont(weight="bold"),
+            command=self._load_secrets_tools
         )
-        refresh_btn.grid(row=0, column=3, padx=(2, 0))
+        self.tools_btn.grid(row=0, column=0, sticky="ew", padx=(0, 2))
+
+        self.flora_btn = ctk.CTkButton(
+            btn_row2, text="Flora", height=28,
+            fg_color="#43A047", hover_color="#2E7D32",
+            font=ctk.CTkFont(weight="bold"),
+            command=self._load_secrets_flora
+        )
+        self.flora_btn.grid(row=0, column=1, sticky="ew", padx=2)
+
+        # Row 3: Loot, Items
+        btn_row3 = ctk.CTkFrame(btn_container, fg_color="transparent")
+        btn_row3.pack(fill="x", pady=(2, 0))
+        btn_row3.grid_columnconfigure(0, weight=1)
+        btn_row3.grid_columnconfigure(1, weight=1)
+
+        self.loot_btn = ctk.CTkButton(
+            btn_row3, text="Loot", height=28,
+            fg_color="#E53935", hover_color="#C62828",
+            font=ctk.CTkFont(weight="bold"),
+            command=self._load_secrets_loot
+        )
+        self.loot_btn.grid(row=0, column=0, sticky="ew", padx=(0, 2))
+
+        self.items_btn = ctk.CTkButton(
+            btn_row3, text="Items", height=28,
+            fg_color="#5C6BC0", hover_color="#3949AB",
+            font=ctk.CTkFont(weight="bold"),
+            command=self._load_secrets_items
+        )
+        self.items_btn.grid(row=0, column=1, sticky="ew", padx=2)
 
         # Scrollable file list
         self.building_list = ctk.CTkScrollableFrame(list_frame, fg_color="transparent")
@@ -1437,41 +2130,41 @@ class BuildingsView(ctk.CTkFrame):
         )
         self.count_label.pack(padx=10, anchor="w", pady=(0, 5))
 
-        # Bottom section with construction name and build button
+        # Bottom section with Change Secrets and Build button
         bottom_frame = ctk.CTkFrame(list_frame, fg_color="transparent")
         bottom_frame.pack(fill="x", padx=10, pady=(5, 10))
 
-        # Left side: "My Construction Name" button and text field
+        # Left side: "Change Secrets" button and text field
         left_bottom = ctk.CTkFrame(bottom_frame, fg_color="transparent")
         left_bottom.pack(side="left", fill="x", expand=True)
 
-        construction_name_btn = ctk.CTkButton(
+        change_secrets_btn = ctk.CTkButton(
             left_bottom,
-            text="My Construction",
-            fg_color="#9C27B0",  # Purple
-            hover_color="#7B1FA2",
+            text="Change Secrets",
+            fg_color="#2196F3",
+            hover_color="#1976D2",
             text_color="white",
             font=ctk.CTkFont(weight="bold"),
-            width=120,
-            command=self._on_construction_name_click
+            width=130,
+            command=self._on_change_secrets_click
         )
-        construction_name_btn.pack(side="left")
+        change_secrets_btn.pack(side="left")
 
-        # Text field for construction name
-        self.construction_name_var = ctk.StringVar(value="")
-        self.construction_name_entry = ctk.CTkEntry(
+        self.secrets_prefix_var = ctk.StringVar(value="")
+        self.secrets_prefix_entry = ctk.CTkEntry(
             left_bottom,
-            textvariable=self.construction_name_var,
-            width=100,
-            placeholder_text="Name..."
+            textvariable=self.secrets_prefix_var,
+            width=120,
+            placeholder_text="No prefix...",
+            state="disabled"
         )
-        self.construction_name_entry.pack(side="left", padx=(10, 0), fill="x", expand=True)
+        self.secrets_prefix_entry.pack(side="left", padx=(10, 0), fill="x", expand=True)
 
-        # Right side: "Build" button
+        # Right side: Build button
         build_btn = ctk.CTkButton(
             bottom_frame,
             text="Build",
-            fg_color="#4CAF50",  # Green
+            fg_color="#4CAF50",
             hover_color="#388E3C",
             text_color="white",
             font=ctk.CTkFont(weight="bold"),
@@ -1781,12 +2474,18 @@ class BuildingsView(ctk.CTkFrame):
         self._set_status("Cache refreshed from Secrets Source")
 
         # Reload the current view if one is active
-        if self.view_mode == 'buildings':
-            self._load_secrets_buildings()
-        elif self.view_mode == 'weapons':
-            self._load_secrets_weapons()
-        elif self.view_mode == 'armor':
-            self._load_secrets_armor()
+        loader_map = {
+            'buildings': self._load_secrets_buildings,
+            'weapons': self._load_secrets_weapons,
+            'armor': self._load_secrets_armor,
+            'tools': self._load_secrets_tools,
+            'flora': self._load_secrets_flora,
+            'loot': self._load_secrets_loot,
+            'items': self._load_secrets_items,
+        }
+        loader = loader_map.get(self.view_mode)
+        if loader:
+            loader()
 
     def _on_secrets_checkbox_toggle(self, recipe_name: str):
         """Handle secrets item checkbox toggle - saves to INI in real-time."""
@@ -1821,96 +2520,214 @@ class BuildingsView(ctk.CTkFrame):
         with open(ini_path, 'w', encoding='utf-8') as f:
             config.write(f)
 
-    def _on_construction_name_click(self):
-        """Handle click on 'My Construction' button - open dialog to select .def filename."""
-        from src.ui.construction_name_dialog import show_construction_name_dialog  # pylint: disable=import-outside-toplevel
+    def _on_change_secrets_click(self):
+        """Handle Change Secrets button click - open dialog to select/create prefix."""
+        # Save current states before switching
+        self._save_checked_states_to_ini()
 
-        # Get current name from the text field
-        current_name = self.construction_name_var.get().strip() if self.construction_name_var else ""
+        current_prefix = self.secrets_prefix_var.get()
+        dialog = _ChangeSecretsDialog(self.winfo_toplevel(), current_prefix)
+        dialog.wait_window()
 
-        # Show dialog - returns filename (without .def) or None
-        result = show_construction_name_dialog(self.winfo_toplevel(), current_name)
+        if dialog.result is not None:
+            self.secrets_prefix_var.set(dialog.result)
+            # Persist the selected prefix
+            self._save_secrets_prefix()
+            # Reload the current view to use the new change set's cache/INI
+            self._reload_current_view()
 
-        if result:
-            # Update the name entry with the selected filename
-            if self.construction_name_var:
-                self.construction_name_var.set(result)
-            self._set_status(f"Selected definition: {result}.def")
+    def _reload_current_view(self):
+        """Reload the current view mode to reflect the active change set."""
+        mode_loaders = {
+            'buildings': self._load_secrets_buildings,
+            'weapons': self._load_secrets_weapons,
+            'armor': self._load_secrets_armor,
+            'tools': self._load_secrets_tools,
+            'flora': self._load_secrets_flora,
+            'loot': self._load_secrets_loot,
+            'items': self._load_secrets_items,
+        }
+        loader = mode_loaders.get(self.view_mode)
+        if loader:
+            loader()
 
     def _on_construction_build_click(self):
-        """Build a .def file with only the changes between original and cached rows."""
-        from tkinter import messagebox  # pylint: disable=import-outside-toplevel
+        """Build MODIFY .def files for all checked items across all view modes.
 
-        # Get selected construction names (checked items in the list)
-        selected_names = [
-            name for name, check_var in self.construction_check_vars.items()
-            if check_var.get()
+        Processes buildings, weapons, and armor simultaneously, creating separate
+        .def files per source JSON file (e.g. MODIFY DT_Constructions.def).
+        """
+        # Save current view's checked states before switching modes
+        self._save_checked_states_to_ini()
+        saved_view_mode = self.view_mode
+
+        self._set_status("Building definition files from all changes...")
+
+        # Define the configuration for each mode
+        mode_configs = [
+            {
+                'mode': 'buildings',
+                'output_subdir': 'Building',
+                'recipes_name': 'DT_ConstructionRecipes',
+                'defs_name': 'DT_Constructions',
+                'recipes_def_path': r'Moria\Content\Tech\Data\Building\DT_ConstructionRecipes.json',
+                'defs_def_path': r'Moria\Content\Tech\Data\Building\DT_Constructions.json',
+            },
+            {
+                'mode': 'weapons',
+                'output_subdir': 'Items',
+                'recipes_name': 'DT_ItemRecipes',
+                'defs_name': 'DT_Weapons',
+                'recipes_def_path': r'Moria\Content\Tech\Data\Items\DT_ItemRecipes.json',
+                'defs_def_path': r'Moria\Content\Tech\Data\Items\DT_Weapons.json',
+            },
+            {
+                'mode': 'armor',
+                'output_subdir': 'Items',
+                'recipes_name': 'DT_ItemRecipes',
+                'defs_name': 'DT_Armor',
+                'recipes_def_path': r'Moria\Content\Tech\Data\Items\DT_ItemRecipes.json',
+                'defs_def_path': r'Moria\Content\Tech\Data\Items\DT_Armor.json',
+            },
+            {
+                'mode': 'tools',
+                'output_subdir': 'Items',
+                'recipes_name': 'DT_ItemRecipes',
+                'defs_name': 'DT_Tools',
+                'recipes_def_path': r'Moria\Content\Tech\Data\Items\DT_ItemRecipes.json',
+                'defs_def_path': r'Moria\Content\Tech\Data\Items\DT_Tools.json',
+            },
+            {
+                'mode': 'items',
+                'output_subdir': 'Items',
+                'recipes_name': 'DT_ItemRecipes',
+                'defs_name': 'DT_Items',
+                'recipes_def_path': r'Moria\Content\Tech\Data\Items\DT_ItemRecipes.json',
+                'defs_def_path': r'Moria\Content\Tech\Data\Items\DT_Items.json',
+            },
+            {
+                'mode': 'flora',
+                'output_subdir': 'Flora',
+                'recipes_name': None,
+                'defs_name': 'DT_Moria_Flora',
+                'recipes_def_path': None,
+                'defs_def_path': r'Moria\Content\Tech\Data\Gameworld\DT_Moria_Flora.json',
+            },
+            {
+                'mode': 'loot',
+                'output_subdir': 'Loot',
+                'recipes_name': None,
+                'defs_name': 'DT_Loot',
+                'recipes_def_path': None,
+                'defs_def_path': r'Moria\Content\Character\AI\DT_Loot.json',
+            },
         ]
 
-        if not selected_names:
-            messagebox.showwarning("No Selection", "Please select at least one construction to build.")
+        # Collect changes keyed by (output_subdir, filename, def_path)
+        all_changes = {}
+
+        for cfg in mode_configs:
+            self.view_mode = cfg['mode']
+            checked_names = self._load_checked_states_from_ini()
+            if not checked_names:
+                continue
+
+            # Load original and cached data for this mode
+            has_recipes = cfg['recipes_name'] is not None
+            try:
+                if has_recipes:
+                    orig_recipes = self._load_table_data(self._get_secrets_recipes_path())
+                    cache_recipes = self._load_table_data(self._get_cache_recipes_path())
+                orig_defs = self._load_table_data(self._get_secrets_constructions_path())
+                cache_defs = self._load_table_data(self._get_cache_constructions_path())
+            except (OSError, json.JSONDecodeError, KeyError) as e:
+                logger.error("Build: could not read %s files: %s", cfg['mode'], e)
+                continue
+
+            # Diff checked items
+            for name in sorted(checked_names):
+                # Recipe changes (only for modes with recipes)
+                if has_recipes:
+                    orig_row = orig_recipes.get(name, {})
+                    cache_row = cache_recipes.get(name, {})
+                    recipe_diffs = self._diff_row_properties(name, orig_row, cache_row)
+                    if recipe_diffs:
+                        key = (cfg['output_subdir'], cfg['recipes_name'], cfg['recipes_def_path'])
+                        all_changes.setdefault(key, []).extend(recipe_diffs)
+
+                # Definition changes
+                orig_row = orig_defs.get(name, {})
+                cache_row = cache_defs.get(name, {})
+                def_diffs = self._diff_row_properties(name, orig_row, cache_row)
+                if def_diffs:
+                    key = (cfg['output_subdir'], cfg['defs_name'], cfg['defs_def_path'])
+                    all_changes.setdefault(key, []).extend(def_diffs)
+
+        # Restore view mode
+        self.view_mode = saved_view_mode
+
+        if not all_changes:
+            self._set_status("No changes found across any checked items")
             return
 
-        # Get .def filename from the text field
-        pack_name = self.construction_name_var.get().strip() if self.construction_name_var else ""
-        if not pack_name:
-            messagebox.showwarning("No Name", "Please enter a filename for the definition.")
-            if hasattr(self, 'construction_name_entry') and self.construction_name_entry:
-                self.construction_name_entry.focus_set()
-            return
-
-        # Sanitize name for use as filename
-        safe_name = re.sub(r'[<>:"/\\|?*]', '_', pack_name)
-
-        # Define output directory and file
-        output_dir = get_appdata_dir() / "Definitions" / "Building"
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_file = output_dir / f"{safe_name}.def"
-
-        self._set_status("Building definition file from changes...")
-
-        # Load both original and cached data
+        # Write a separate .def file for each JSON file that has changes
+        files_created = 0
+        total_changes = 0
         try:
-            orig_recipes = self._load_table_data(self._get_secrets_recipes_path())
-            orig_constructions = self._load_table_data(self._get_secrets_constructions_path())
-            cache_recipes = self._load_table_data(self._get_cache_recipes_path())
-            cache_constructions = self._load_table_data(self._get_cache_constructions_path())
-        except (OSError, json.JSONDecodeError, KeyError) as e:
-            self._set_status(f"Build failed: Could not read files - {e}", is_error=True)
-            return
+            for (output_subdir, filename, def_path), changes in all_changes.items():
+                if not changes:
+                    continue
 
-        # Diff each selected item: compare original vs cached row properties
-        recipe_changes = []  # list of (row_name, property_name, new_value_str)
-        construction_changes = []
+                prefix = self.secrets_prefix_var.get() if hasattr(self, 'secrets_prefix_var') else ""
+                prefix_str = f"{prefix}_" if prefix else ""
+                def_name = f"{prefix_str}MODIFY {filename}"
 
-        for name in sorted(selected_names):
-            # Diff recipe rows
-            orig_row = orig_recipes.get(name, {})
-            cache_row = cache_recipes.get(name, {})
-            recipe_changes.extend(self._diff_row_properties(name, orig_row, cache_row))
+                lines = [
+                    '<?xml version="1.0" encoding="UTF-8"?>',
+                    '<definition>',
+                    f'  <title>{self._escape_xml(def_name)}</title>',
+                    '  <author>Moria MOD Creator</author>',
+                    f'  <description>{len(changes)} modifications to {filename}.json</description>',
+                    f'  <mod file="{def_path}">',
+                ]
+                for item, prop, value in changes:
+                    lines.append(
+                        f'    <change item="{self._escape_xml(item)}" '
+                        f'property="{self._escape_xml(prop)}" '
+                        f'value="{self._escape_xml(str(value))}" />'
+                    )
+                lines.append('  </mod>')
+                lines.append('</definition>')
 
-            # Diff construction rows
-            orig_row = orig_constructions.get(name, {})
-            cache_row = cache_constructions.get(name, {})
-            construction_changes.extend(self._diff_row_properties(name, orig_row, cache_row))
+                def_content = '\n'.join(lines)
 
-        if not recipe_changes and not construction_changes:
-            self._set_status("No changes found between original and cached data")
-            return
+                # Write to global Definitions directory (for Mod Builder)
+                global_dir = get_appdata_dir() / "Definitions" / output_subdir
+                global_dir.mkdir(parents=True, exist_ok=True)
+                global_file = global_dir / f"{def_name}.def"
+                with open(global_file, 'w', encoding='utf-8') as f:
+                    f.write(def_content)
+                logger.info("Wrote %s with %d changes", global_file.name, len(changes))
 
-        # Write the .def file with <change> elements
-        try:
-            self._write_changes_def_file(
-                output_file, safe_name, recipe_changes, construction_changes
-            )
+                # Also write to change set directory (for persistence)
+                if prefix:
+                    set_dir = get_default_changesecrets_dir() / prefix / "definitions" / output_subdir
+                    set_dir.mkdir(parents=True, exist_ok=True)
+                    set_file = set_dir / f"{def_name}.def"
+                    with open(set_file, 'w', encoding='utf-8') as f:
+                        f.write(def_content)
+                    logger.info("Saved to change set: %s", set_file.name)
+
+                files_created += 1
+                total_changes += len(changes)
+
         except OSError as e:
-            logger.error("Error writing .def file: %s", e)
-            self._set_status(f"Build failed: Could not write .def file - {e}", is_error=True)
+            logger.error("Error writing .def files: %s", e)
+            self._set_status(f"Build failed: {e}", is_error=True)
             return
 
-        total_changes = len(recipe_changes) + len(construction_changes)
         self._set_status(
-            f"Build complete: '{pack_name}' - {total_changes} change(s) → {output_file.name}"
+            f"Build complete: {files_created} .def file(s), {total_changes} total change(s)"
         )
 
     def _load_table_data(self, json_path: Path) -> dict:
@@ -2020,6 +2837,10 @@ class BuildingsView(ctk.CTkFrame):
     ) -> list[tuple[str, str, str]]:
         """Diff inner properties of a struct, returning dot-path changes."""
         changes = []
+        # Guard: if list contains non-dict items (e.g. strings), skip struct diff
+        if not all(isinstance(p, dict) for p in orig_props) or \
+           not all(isinstance(p, dict) for p in cache_props):
+            return changes
         orig_map = {p.get('Name'): p for p in orig_props if p.get('Name')}
         cache_map = {p.get('Name'): p for p in cache_props if p.get('Name')}
 
@@ -2085,23 +2906,39 @@ class BuildingsView(ctk.CTkFrame):
     ):
         """Write a .def file containing only <change> elements for modified properties.
 
+        Uses view_mode to determine the correct JSON file paths in the .def XML.
+
         Args:
             output_file: Path to write the .def file
             def_name: Name for the definition title
-            recipe_changes: List of (item, property, value) for DT_ConstructionRecipes
-            construction_changes: List of (item, property, value) for DT_Constructions
+            recipe_changes: List of (item, property, value) for recipes
+            construction_changes: List of (item, property, value) for definitions
         """
+        # Determine file paths and description label based on view mode
+        if self.view_mode == 'weapons':
+            recipes_def_path = r'Moria\Content\Tech\Data\Items\DT_ItemRecipes.json'
+            defs_def_path = r'Moria\Content\Tech\Data\Items\DT_Weapons.json'
+            desc_label = "Weapon"
+        elif self.view_mode == 'armor':
+            recipes_def_path = r'Moria\Content\Tech\Data\Items\DT_ItemRecipes.json'
+            defs_def_path = r'Moria\Content\Tech\Data\Items\DT_Armor.json'
+            desc_label = "Armor"
+        else:
+            recipes_def_path = r'Moria\Content\Tech\Data\Building\DT_ConstructionRecipes.json'
+            defs_def_path = r'Moria\Content\Tech\Data\Building\DT_Constructions.json'
+            desc_label = "Building"
+
         lines = [
             '<?xml version="1.0" encoding="UTF-8"?>',
             '<definition>',
             f'  <title>{self._escape_xml(def_name)}</title>',
             '  <author>Moria MOD Creator</author>',
-            f'  <description>Building modifications: {len(recipe_changes)} recipe changes, '
-            f'{len(construction_changes)} construction changes</description>',
+            f'  <description>{desc_label} modifications: {len(recipe_changes)} recipe changes, '
+            f'{len(construction_changes)} definition changes</description>',
         ]
 
         if recipe_changes:
-            lines.append('  <mod file="Moria\\Content\\Tech\\Data\\Building\\DT_ConstructionRecipes.json">')
+            lines.append(f'  <mod file="{recipes_def_path}">')
             for item, prop, value in recipe_changes:
                 lines.append(
                     f'    <change item="{self._escape_xml(item)}" '
@@ -2111,7 +2948,7 @@ class BuildingsView(ctk.CTkFrame):
             lines.append('  </mod>')
 
         if construction_changes:
-            lines.append('  <mod file="Moria\\Content\\Tech\\Data\\Building\\DT_Constructions.json">')
+            lines.append(f'  <mod file="{defs_def_path}">')
             for item, prop, value in construction_changes:
                 lines.append(
                     f'    <change item="{self._escape_xml(item)}" '
@@ -2280,7 +3117,7 @@ class BuildingsView(ctk.CTkFrame):
     # -------------------------------------------------------------------------
 
     def _show_form(self):
-        """Render the complete editable form with Recipe and Construction sections."""
+        """Render the editable form, dispatching to per-type renderer."""
         # Hide placeholder and show form widgets
         self.placeholder_label.pack_forget()
 
@@ -2295,7 +3132,6 @@ class BuildingsView(ctk.CTkFrame):
         description = self.current_def_data.get("description", "")
         if title or author:
             header_text = title or "(Untitled)"
-            # Show StringTable display name alongside title if available
             construction_json = self.current_def_data.get("construction_json")
             construction_name = (construction_json.get("Name", "")
                                  if construction_json else "")
@@ -2320,23 +3156,49 @@ class BuildingsView(ctk.CTkFrame):
         recipe_json = self.current_def_data.get("recipe_json")
         construction_json = self.current_def_data.get("construction_json")
 
+        # Dispatch to per-type form renderer
+        mode = self.view_mode or 'buildings'
         has_data = False
 
-        # ===== SECTION 1: RECIPE DATA =====
+        if mode == 'buildings':
+            has_data = self._show_buildings_form(recipe_json, construction_json)
+        elif mode == 'weapons':
+            has_data = self._show_weapon_form(recipe_json, construction_json)
+        elif mode == 'armor':
+            has_data = self._show_armor_form(recipe_json, construction_json)
+        elif mode == 'tools':
+            has_data = self._show_tool_form(recipe_json, construction_json)
+        elif mode == 'items':
+            has_data = self._show_items_form(recipe_json, construction_json)
+        elif mode == 'flora':
+            has_data = self._show_flora_form(construction_json)
+        elif mode == 'loot':
+            has_data = self._show_loot_form(construction_json)
+
+        if not has_data:
+            ctk.CTkLabel(
+                self.form_content, text="No data found for this item.",
+                text_color="gray"
+            ).pack(anchor="center", pady=40)
+
+    # ----- Per-type form renderers -----
+
+    def _show_buildings_form(self, recipe_json, construction_json):
+        """Render buildings form (construction recipe + construction definition)."""
+        has_data = False
+
         if recipe_json and isinstance(recipe_json, dict):
             has_data = True
             recipe = extract_recipe_fields(recipe_json)
 
             self._create_section_header("Construction Recipe", "#FF9800")
 
-            # Row name and result construction
             self._create_text_field("Name", recipe["Name"], label="Row Name")
             self._create_text_field(
                 "ResultConstructionHandle", recipe["ResultConstructionHandle"],
                 label="Result Construction", autocomplete_key="ResultConstructions"
             )
 
-            # Enum dropdowns - row 1
             row1 = ctk.CTkFrame(self.form_content, fg_color="transparent")
             row1.pack(fill="x", pady=3)
             self._create_dropdown_field_inline(
@@ -2348,7 +3210,6 @@ class BuildingsView(ctk.CTkFrame):
                 self._get_options("Enum_PlacementType", DEFAULT_PLACEMENT)
             )
 
-            # Enum dropdowns - row 2
             row2 = ctk.CTkFrame(self.form_content, fg_color="transparent")
             row2.pack(fill="x", pady=3)
             self._create_dropdown_field_inline(
@@ -2360,7 +3221,6 @@ class BuildingsView(ctk.CTkFrame):
                 self._get_options("Enum_FoundationRule", DEFAULT_FOUNDATION_RULE)
             )
 
-            # Enum dropdown - row 3
             row3 = ctk.CTkFrame(self.form_content, fg_color="transparent")
             row3.pack(fill="x", pady=3)
             self._create_dropdown_field_inline(
@@ -2368,26 +3228,22 @@ class BuildingsView(ctk.CTkFrame):
                 self._get_options("Enum_MonumentType", DEFAULT_MONUMENT_TYPE)
             )
 
-            # Boolean checkboxes - row 1 (placement)
             self._create_subsection_header("Placement Options")
             bool_row1 = ctk.CTkFrame(self.form_content, fg_color="transparent")
             bool_row1.pack(fill="x", pady=4)
             for bf in ["bOnWall", "bOnFloor", "bPlaceOnWater", "bOverrideRotation"]:
                 self._create_checkbox_field(bool_row1, bf, recipe[bf])
 
-            # Boolean checkboxes - row 2 (building rules)
             bool_row2 = ctk.CTkFrame(self.form_content, fg_color="transparent")
             bool_row2.pack(fill="x", pady=4)
             for bf in ["bAllowRefunds", "bAutoFoundation", "bInheritAutoFoundationStability", "bOnlyOnVoxel"]:
                 self._create_checkbox_field(bool_row2, bf, recipe[bf])
 
-            # Boolean checkboxes - row 3 (restrictions)
             bool_row3 = ctk.CTkFrame(self.form_content, fg_color="transparent")
             bool_row3.pack(fill="x", pady=4)
             for bf in ["bIsBlockedByNearbySettlementStones", "bIsBlockedByNearbyRavenConstructions"]:
                 self._create_checkbox_field(bool_row3, bf, recipe[bf])
 
-            # Numeric fields
             self._create_subsection_header("Numeric Properties")
             self._create_text_field(
                 "MaxAllowedPenetrationDepth", str(recipe["MaxAllowedPenetrationDepth"]),
@@ -2402,156 +3258,699 @@ class BuildingsView(ctk.CTkFrame):
                 label="Camera Priority", width=200
             )
 
-            # Materials section
-            self._create_subsection_header("Required Materials")
-            add_mat_btn = ctk.CTkButton(
-                self.form_content, text="+ Add Material", width=120, height=28,
-                fg_color="#4CAF50", hover_color="#45a049",
-                command=self._add_new_material_row
-            )
-            add_mat_btn.pack(anchor="w", pady=(0, 5))
+            self._render_materials_section(recipe)
+            self._render_unlocks_section(recipe)
+            self._render_sandbox_section(recipe)
 
-            self.materials_frame = ctk.CTkFrame(self.form_content, fg_color="transparent")
-            self.materials_frame.pack(fill="x", pady=5)
-            for mat in recipe["Materials"]:
-                self._add_material_row(mat["Material"], mat["Amount"])
-
-            # Required constructions
-            self._create_text_field(
-                "DefaultRequiredConstructions",
-                ", ".join(recipe["DefaultRequiredConstructions"]),
-                label="Required Constructions", autocomplete_key="Constructions"
-            )
-
-            # Default Unlocks subsection
-            self._create_subsection_header("Default Unlocks")
-            self._create_dropdown_field(
-                "DefaultUnlocks_UnlockType", recipe["DefaultUnlocks_UnlockType"],
-                self._get_options("Enum_EMorRecipeUnlockType", DEFAULT_UNLOCK_TYPE),
-                label="Unlock Type"
-            )
-            self._create_text_field(
-                "DefaultUnlocks_NumFragments", str(recipe["DefaultUnlocks_NumFragments"]),
-                label="Num Fragments", width=200
-            )
-            self._create_text_field(
-                "DefaultUnlocks_RequiredItems",
-                ", ".join(recipe["DefaultUnlocks_RequiredItems"]),
-                label="Required Items", autocomplete_key="AllValues"
-            )
-            self._create_text_field(
-                "DefaultUnlocks_RequiredConstructions",
-                ", ".join(recipe["DefaultUnlocks_RequiredConstructions"]),
-                label="Required Constructions", autocomplete_key="AllValues"
-            )
-            self._create_text_field(
-                "DefaultUnlocks_RequiredFragments",
-                ", ".join(recipe["DefaultUnlocks_RequiredFragments"]),
-                label="Required Fragments", autocomplete_key="AllValues"
-            )
-
-            # Sandbox overrides
-            self._create_subsection_header("Sandbox Overrides")
-            sandbox_bool_frame = ctk.CTkFrame(self.form_content, fg_color="transparent")
-            sandbox_bool_frame.pack(fill="x", pady=4)
-            self._create_checkbox_field(sandbox_bool_frame, "bHasSandboxRequirementsOverride",
-                                        recipe["bHasSandboxRequirementsOverride"])
-            self._create_checkbox_field(sandbox_bool_frame, "bHasSandboxUnlockOverride",
-                                        recipe["bHasSandboxUnlockOverride"])
-
-            self._create_dropdown_field(
-                "SandboxUnlocks_UnlockType", recipe["SandboxUnlocks_UnlockType"],
-                self._get_options("Enum_EMorRecipeUnlockType", DEFAULT_UNLOCK_TYPE),
-                label="Sandbox Unlock Type"
-            )
-            self._create_text_field(
-                "SandboxUnlocks_NumFragments", str(recipe["SandboxUnlocks_NumFragments"]),
-                label="Sandbox Num Fragments", width=200
-            )
-            self._create_text_field(
-                "SandboxUnlocks_RequiredItems",
-                ", ".join(recipe["SandboxUnlocks_RequiredItems"]),
-                label="Sandbox Required Items", autocomplete_key="AllValues"
-            )
-            self._create_text_field(
-                "SandboxUnlocks_RequiredConstructions",
-                ", ".join(recipe.get("SandboxUnlocks_RequiredConstructions", [])),
-                label="Sandbox Unlock Req. Constructions", autocomplete_key="AllValues"
-            )
-            self._create_text_field(
-                "SandboxUnlocks_RequiredFragments",
-                ", ".join(recipe.get("SandboxUnlocks_RequiredFragments", [])),
-                label="Sandbox Unlock Req. Fragments", autocomplete_key="AllValues"
-            )
-
-            # Sandbox materials
-            self._create_subsection_header("Sandbox Required Materials")
-            add_sandbox_mat_btn = ctk.CTkButton(
-                self.form_content, text="+ Add Sandbox Material", width=160, height=28,
-                fg_color="#4CAF50", hover_color="#45a049",
-                command=self._add_new_sandbox_material_row
-            )
-            add_sandbox_mat_btn.pack(anchor="w", pady=(0, 5))
-
-            self.sandbox_materials_frame = ctk.CTkFrame(self.form_content, fg_color="transparent")
-            sandbox_mats = recipe.get("SandboxRequiredMaterials", [])
-            if sandbox_mats:
-                self.sandbox_materials_frame.pack(fill="x", pady=(0, 5))
-                for mat in sandbox_mats:
-                    self._add_sandbox_material_row(mat["Material"], mat["Amount"])
-
-            # Sandbox required constructions
-            self._create_text_field(
-                "SandboxRequiredConstructions",
-                ", ".join(recipe.get("SandboxRequiredConstructions", [])),
-                label="Sandbox Required Constructions", autocomplete_key="Constructions"
-            )
-
-            # Recipe EnabledState
             self._create_dropdown_field(
                 "Recipe_EnabledState", recipe["EnabledState"],
                 DEFAULT_ENABLED_STATE, label="Recipe Enabled State"
             )
 
-        # ===== SECTION 2: CONSTRUCTION DATA =====
         if construction_json and isinstance(construction_json, dict):
             has_data = True
             construction = extract_construction_fields(construction_json)
+            self._render_construction_definition(construction)
 
-            self._create_section_header("Construction Definition", "#4CAF50")
+        return has_data
 
-            self._create_text_field("Construction_Name", construction["Name"], label="Row Name")
-            self._create_text_field("DisplayName", construction["DisplayName"], label="Display Name")
-            self._create_text_field("Description", construction["Description"])
-            self._create_text_field("Actor", construction["Actor"],
+    def _render_materials_section(self, recipe):
+        """Render required materials with add/remove buttons."""
+        self._create_subsection_header("Required Materials")
+        add_mat_btn = ctk.CTkButton(
+            self.form_content, text="+ Add Material", width=120, height=28,
+            fg_color="#4CAF50", hover_color="#45a049",
+            command=self._add_new_material_row
+        )
+        add_mat_btn.pack(anchor="w", pady=(0, 5))
+
+        self.materials_frame = ctk.CTkFrame(self.form_content, fg_color="transparent")
+        self.materials_frame.pack(fill="x", pady=5)
+        for mat in recipe["Materials"]:
+            self._add_material_row(mat["Material"], mat["Amount"])
+
+        self._create_text_field(
+            "DefaultRequiredConstructions",
+            ", ".join(recipe["DefaultRequiredConstructions"]),
+            label="Required Constructions", autocomplete_key="Constructions"
+        )
+
+    def _render_unlocks_section(self, recipe):
+        """Render default unlocks subsection."""
+        self._create_subsection_header("Default Unlocks")
+        self._create_dropdown_field(
+            "DefaultUnlocks_UnlockType", recipe["DefaultUnlocks_UnlockType"],
+            self._get_options("Enum_EMorRecipeUnlockType", DEFAULT_UNLOCK_TYPE),
+            label="Unlock Type"
+        )
+        self._create_text_field(
+            "DefaultUnlocks_NumFragments", str(recipe["DefaultUnlocks_NumFragments"]),
+            label="Num Fragments", width=200
+        )
+        self._create_text_field(
+            "DefaultUnlocks_RequiredItems",
+            ", ".join(recipe["DefaultUnlocks_RequiredItems"]),
+            label="Required Items", autocomplete_key="AllValues"
+        )
+        self._create_text_field(
+            "DefaultUnlocks_RequiredConstructions",
+            ", ".join(recipe["DefaultUnlocks_RequiredConstructions"]),
+            label="Required Constructions", autocomplete_key="AllValues"
+        )
+        self._create_text_field(
+            "DefaultUnlocks_RequiredFragments",
+            ", ".join(recipe["DefaultUnlocks_RequiredFragments"]),
+            label="Required Fragments", autocomplete_key="AllValues"
+        )
+
+    def _render_sandbox_section(self, recipe):
+        """Render sandbox overrides subsection."""
+        self._create_subsection_header("Sandbox Overrides")
+        sandbox_bool_frame = ctk.CTkFrame(self.form_content, fg_color="transparent")
+        sandbox_bool_frame.pack(fill="x", pady=4)
+        self._create_checkbox_field(sandbox_bool_frame, "bHasSandboxRequirementsOverride",
+                                    recipe["bHasSandboxRequirementsOverride"])
+        self._create_checkbox_field(sandbox_bool_frame, "bHasSandboxUnlockOverride",
+                                    recipe["bHasSandboxUnlockOverride"])
+
+        self._create_dropdown_field(
+            "SandboxUnlocks_UnlockType", recipe["SandboxUnlocks_UnlockType"],
+            self._get_options("Enum_EMorRecipeUnlockType", DEFAULT_UNLOCK_TYPE),
+            label="Sandbox Unlock Type"
+        )
+        self._create_text_field(
+            "SandboxUnlocks_NumFragments", str(recipe["SandboxUnlocks_NumFragments"]),
+            label="Sandbox Num Fragments", width=200
+        )
+        self._create_text_field(
+            "SandboxUnlocks_RequiredItems",
+            ", ".join(recipe["SandboxUnlocks_RequiredItems"]),
+            label="Sandbox Required Items", autocomplete_key="AllValues"
+        )
+        self._create_text_field(
+            "SandboxUnlocks_RequiredConstructions",
+            ", ".join(recipe.get("SandboxUnlocks_RequiredConstructions", [])),
+            label="Sandbox Unlock Req. Constructions", autocomplete_key="AllValues"
+        )
+        self._create_text_field(
+            "SandboxUnlocks_RequiredFragments",
+            ", ".join(recipe.get("SandboxUnlocks_RequiredFragments", [])),
+            label="Sandbox Unlock Req. Fragments", autocomplete_key="AllValues"
+        )
+
+        self._create_subsection_header("Sandbox Required Materials")
+        add_sandbox_mat_btn = ctk.CTkButton(
+            self.form_content, text="+ Add Sandbox Material", width=160, height=28,
+            fg_color="#4CAF50", hover_color="#45a049",
+            command=self._add_new_sandbox_material_row
+        )
+        add_sandbox_mat_btn.pack(anchor="w", pady=(0, 5))
+
+        self.sandbox_materials_frame = ctk.CTkFrame(self.form_content, fg_color="transparent")
+        sandbox_mats = recipe.get("SandboxRequiredMaterials", [])
+        if sandbox_mats:
+            self.sandbox_materials_frame.pack(fill="x", pady=(0, 5))
+            for mat in sandbox_mats:
+                self._add_sandbox_material_row(mat["Material"], mat["Amount"])
+
+        self._create_text_field(
+            "SandboxRequiredConstructions",
+            ", ".join(recipe.get("SandboxRequiredConstructions", [])),
+            label="Sandbox Required Constructions", autocomplete_key="Constructions"
+        )
+
+    def _render_construction_definition(self, construction):
+        """Render construction definition section (shared by buildings)."""
+        self._create_section_header("Construction Definition", "#4CAF50")
+
+        self._create_text_field("Construction_Name", construction["Name"], label="Row Name")
+        self._create_text_field("DisplayName", construction["DisplayName"], label="Display Name")
+        self._create_text_field("Description", construction["Description"])
+        self._create_text_field("Actor", construction["Actor"],
+                                label="Actor Path", autocomplete_key="Actors")
+        icon_val = construction.get("Icon")
+        self._create_text_field(
+            "Icon", str(icon_val) if icon_val is not None else "",
+            label="Icon (Import Index)", readonly=True
+        )
+        self._create_dropdown_field(
+            "Tags",
+            construction["Tags"][0] if construction["Tags"] else "",
+            self._get_options("Tags", []),
+            label="Category Tag"
+        )
+        self._create_text_field(
+            "BackwardCompatibilityActors",
+            ", ".join(construction["BackwardCompatibilityActors"]),
+            label="Backward Compat Actors", autocomplete_key="Actors"
+        )
+        self._create_dropdown_field(
+            "Construction_EnabledState", construction["EnabledState"],
+            DEFAULT_ENABLED_STATE, label="Construction Enabled State"
+        )
+
+    def _render_item_recipe_section(self, recipe_json):
+        """Render item recipe section (shared by weapons, armor, tools, items)."""
+        recipe = extract_item_recipe_fields(recipe_json)
+
+        self._create_section_header("Item Recipe", "#FF9800")
+
+        self._create_text_field("Name", recipe["Name"], label="Row Name")
+        self._create_text_field(
+            "ResultItemHandle", recipe["ResultItemHandle"],
+            label="Result Item", autocomplete_key="AllValues"
+        )
+        self._create_text_field(
+            "ResultItemCount", str(recipe.get("ResultItemCount", 1)),
+            label="Result Count", width=200
+        )
+        self._create_text_field(
+            "CraftTimeSeconds", str(recipe.get("CraftTimeSeconds", 0.0)),
+            label="Craft Time (s)", width=200
+        )
+
+        # Booleans
+        bool_frame = ctk.CTkFrame(self.form_content, fg_color="transparent")
+        bool_frame.pack(fill="x", pady=4)
+        self._create_checkbox_field(bool_frame, "bCanBePinned", recipe.get("bCanBePinned", True))
+        self._create_checkbox_field(bool_frame, "bNpcOnlyRecipe", recipe.get("bNpcOnlyRecipe", False))
+
+        self._render_materials_section(recipe)
+        self._render_unlocks_section(recipe)
+        self._render_sandbox_section(recipe)
+
+        self._create_dropdown_field(
+            "Recipe_EnabledState", recipe["EnabledState"],
+            DEFAULT_ENABLED_STATE, label="Recipe Enabled State"
+        )
+
+    def _render_common_item_fields(self, fields, section_title, section_color):
+        """Render common item definition fields (display, inventory, tags)."""
+        self._create_section_header(section_title, section_color)
+
+        self._create_text_field("Def_Name", fields["Name"], label="Row Name", readonly=True)
+        self._create_text_field("DisplayName", fields["DisplayName"], label="Display Name")
+        self._create_text_field("Description", fields.get("Description", ""))
+        self._create_text_field("Actor", fields.get("Actor", ""),
+                                label="Actor Path", autocomplete_key="Actors")
+        if "Icon" in fields:
+            self._create_text_field("Icon", fields["Icon"], label="Icon Path", readonly=True)
+
+        # Tags
+        tags = fields.get("Tags", [])
+        self._create_dropdown_field(
+            "Tags",
+            tags[0] if tags else "",
+            self._get_options("Tags", []),
+            label="Category Tag"
+        )
+
+        # Inventory
+        self._create_subsection_header("Inventory")
+        self._create_dropdown_field(
+            "Portability", fields.get("Portability", "EItemPortability::Storable"),
+            ["EItemPortability::Storable", "EItemPortability::NotStorable",
+             "EItemPortability::Holdable"],
+            label="Portability"
+        )
+        inv_row = ctk.CTkFrame(self.form_content, fg_color="transparent")
+        inv_row.pack(fill="x", pady=3)
+        for col in range(3):
+            inv_row.grid_columnconfigure(col, weight=1)
+        for i, (key, label) in enumerate([
+            ("MaxStackSize", "Max Stack"), ("SlotSize", "Slot Size"),
+            ("BaseTradeValue", "Trade Value")
+        ]):
+            frame = ctk.CTkFrame(inv_row, fg_color="transparent")
+            frame.grid(row=0, column=i, sticky="ew", padx=2)
+            ctk.CTkLabel(frame, text=label, font=ctk.CTkFont(size=11),
+                         width=80, anchor="w").pack(side="left")
+            var = ctk.StringVar(value=str(fields.get(key, 0)))
+            self.form_vars[key] = var
+            ctk.CTkEntry(frame, textvariable=var, width=80).pack(side="left", padx=2)
+
+        self._create_dropdown_field(
+            "Def_EnabledState", fields["EnabledState"],
+            DEFAULT_ENABLED_STATE, label="Definition Enabled State"
+        )
+
+    def _show_weapon_form(self, recipe_json, definition_json):
+        """Render weapon form (item recipe + weapon definition)."""
+        has_data = False
+
+        if recipe_json and isinstance(recipe_json, dict):
+            has_data = True
+            self._render_item_recipe_section(recipe_json)
+
+        if definition_json and isinstance(definition_json, dict):
+            has_data = True
+            w = extract_weapon_fields(definition_json)
+
+            self._create_section_header("Weapon Definition", "#9C27B0")
+
+            self._create_text_field("Def_Name", w["Name"], label="Row Name", readonly=True)
+
+            # Combat stats
+            self._create_subsection_header("Combat Stats")
+            self._create_text_field("DamageType", w["DamageType"], label="Damage Type",
+                                    autocomplete_key="DamageTypes")
+            stats_row1 = ctk.CTkFrame(self.form_content, fg_color="transparent")
+            stats_row1.pack(fill="x", pady=3)
+            for col in range(4):
+                stats_row1.grid_columnconfigure(col, weight=1)
+            for i, (key, label) in enumerate([
+                ("Damage", "Damage"), ("Speed", "Speed"),
+                ("Durability", "Durability"), ("Tier", "Tier")
+            ]):
+                frame = ctk.CTkFrame(stats_row1, fg_color="transparent")
+                frame.grid(row=0, column=i, sticky="ew", padx=2)
+                ctk.CTkLabel(frame, text=label, font=ctk.CTkFont(size=11),
+                             width=70, anchor="w").pack(side="left")
+                var = ctk.StringVar(value=str(w[key]))
+                self.form_vars[key] = var
+                ctk.CTkEntry(frame, textvariable=var, width=70).pack(side="left", padx=2)
+
+            stats_row2 = ctk.CTkFrame(self.form_content, fg_color="transparent")
+            stats_row2.pack(fill="x", pady=3)
+            for col in range(4):
+                stats_row2.grid_columnconfigure(col, weight=1)
+            for i, (key, label) in enumerate([
+                ("ArmorPenetration", "Armor Pen"),
+                ("StaminaCost", "Stamina Cost"),
+                ("EnergyCost", "Energy Cost"),
+                ("BlockDamageReduction", "Block Reduction")
+            ]):
+                frame = ctk.CTkFrame(stats_row2, fg_color="transparent")
+                frame.grid(row=0, column=i, sticky="ew", padx=2)
+                ctk.CTkLabel(frame, text=label, font=ctk.CTkFont(size=11),
+                             width=80, anchor="w").pack(side="left")
+                var = ctk.StringVar(value=str(w[key]))
+                self.form_vars[key] = var
+                ctk.CTkEntry(frame, textvariable=var, width=70).pack(side="left", padx=2)
+
+            # Repair cost
+            if w["InitialRepairCost"]:
+                self._create_subsection_header("Repair Cost")
+                self.materials_frame = ctk.CTkFrame(self.form_content, fg_color="transparent")
+                self.materials_frame.pack(fill="x", pady=5)
+                for mat in w["InitialRepairCost"]:
+                    self._add_material_row(mat["Material"], mat["Amount"])
+
+            # Display
+            self._create_subsection_header("Display")
+            self._create_text_field("DisplayName", w["DisplayName"], label="Display Name")
+            self._create_text_field("Description", w["Description"])
+            self._create_text_field("Actor", w["Actor"],
                                     label="Actor Path", autocomplete_key="Actors")
-            # Icon import index (read-only reference)
-            icon_val = construction.get("Icon")
-            self._create_text_field(
-                "Icon", str(icon_val) if icon_val is not None else "",
-                label="Icon (Import Index)", readonly=True
-            )
+            self._create_text_field("Icon", w["Icon"], label="Icon Path", readonly=True)
+
+            # Tags & inventory
+            tags = w.get("Tags", [])
             self._create_dropdown_field(
-                "Tags",
-                construction["Tags"][0] if construction["Tags"] else "",
-                self._get_options("Tags", []),
-                label="Category Tag"
-            )
-            self._create_text_field(
-                "BackwardCompatibilityActors",
-                ", ".join(construction["BackwardCompatibilityActors"]),
-                label="Backward Compat Actors", autocomplete_key="Actors"
-            )
-            self._create_dropdown_field(
-                "Construction_EnabledState", construction["EnabledState"],
-                DEFAULT_ENABLED_STATE, label="Construction Enabled State"
+                "Tags", tags[0] if tags else "",
+                self._get_options("Tags", []), label="Category Tag"
             )
 
-        if not has_data:
-            ctk.CTkLabel(
-                self.form_content, text="No construction/building data found.",
-                text_color="gray"
-            ).pack(anchor="center", pady=40)
+            self._create_subsection_header("Inventory")
+            self._create_dropdown_field(
+                "Portability", w.get("Portability", "EItemPortability::Storable"),
+                ["EItemPortability::Storable", "EItemPortability::NotStorable",
+                 "EItemPortability::Holdable"], label="Portability"
+            )
+            inv_row = ctk.CTkFrame(self.form_content, fg_color="transparent")
+            inv_row.pack(fill="x", pady=3)
+            for col in range(3):
+                inv_row.grid_columnconfigure(col, weight=1)
+            for i, (key, lbl) in enumerate([
+                ("MaxStackSize", "Max Stack"), ("SlotSize", "Slot Size"),
+                ("BaseTradeValue", "Trade Value")
+            ]):
+                frame = ctk.CTkFrame(inv_row, fg_color="transparent")
+                frame.grid(row=0, column=i, sticky="ew", padx=2)
+                ctk.CTkLabel(frame, text=lbl, font=ctk.CTkFont(size=11),
+                             width=80, anchor="w").pack(side="left")
+                var = ctk.StringVar(value=str(w.get(key, 0)))
+                self.form_vars[key] = var
+                ctk.CTkEntry(frame, textvariable=var, width=80).pack(side="left", padx=2)
+
+            self._create_dropdown_field(
+                "Def_EnabledState", w["EnabledState"],
+                DEFAULT_ENABLED_STATE, label="Definition Enabled State"
+            )
+
+        return has_data
+
+    def _show_armor_form(self, recipe_json, definition_json):
+        """Render armor form (item recipe + armor definition)."""
+        has_data = False
+
+        if recipe_json and isinstance(recipe_json, dict):
+            has_data = True
+            self._render_item_recipe_section(recipe_json)
+
+        if definition_json and isinstance(definition_json, dict):
+            has_data = True
+            a = extract_armor_fields(definition_json)
+
+            self._create_section_header("Armor Definition", "#FF9800")
+
+            self._create_text_field("Def_Name", a["Name"], label="Row Name", readonly=True)
+
+            # Defense stats
+            self._create_subsection_header("Defense Stats")
+            stats_row = ctk.CTkFrame(self.form_content, fg_color="transparent")
+            stats_row.pack(fill="x", pady=3)
+            for col in range(3):
+                stats_row.grid_columnconfigure(col, weight=1)
+            for i, (key, label) in enumerate([
+                ("Durability", "Durability"),
+                ("DamageReduction", "Damage Reduction"),
+                ("DamageProtection", "Damage Protection"),
+            ]):
+                frame = ctk.CTkFrame(stats_row, fg_color="transparent")
+                frame.grid(row=0, column=i, sticky="ew", padx=2)
+                ctk.CTkLabel(frame, text=label, font=ctk.CTkFont(size=11),
+                             width=100, anchor="w").pack(side="left")
+                var = ctk.StringVar(value=str(a[key]))
+                self.form_vars[key] = var
+                ctk.CTkEntry(frame, textvariable=var, width=80).pack(side="left", padx=2)
+
+            # Repair cost
+            if a["InitialRepairCost"]:
+                self._create_subsection_header("Repair Cost")
+                self.materials_frame = ctk.CTkFrame(self.form_content, fg_color="transparent")
+                self.materials_frame.pack(fill="x", pady=5)
+                for mat in a["InitialRepairCost"]:
+                    self._add_material_row(mat["Material"], mat["Amount"])
+
+            # Display & common
+            self._create_subsection_header("Display")
+            self._create_text_field("DisplayName", a["DisplayName"], label="Display Name")
+            self._create_text_field("Description", a["Description"])
+            self._create_text_field("Actor", a["Actor"],
+                                    label="Actor Path", autocomplete_key="Actors")
+            self._create_text_field("Icon", a["Icon"], label="Icon Path", readonly=True)
+
+            tags = a.get("Tags", [])
+            self._create_dropdown_field(
+                "Tags", tags[0] if tags else "",
+                self._get_options("Tags", []), label="Category Tag"
+            )
+
+            self._create_subsection_header("Inventory")
+            self._create_dropdown_field(
+                "Portability", a.get("Portability", "EItemPortability::Storable"),
+                ["EItemPortability::Storable", "EItemPortability::NotStorable",
+                 "EItemPortability::Holdable"], label="Portability"
+            )
+            inv_row = ctk.CTkFrame(self.form_content, fg_color="transparent")
+            inv_row.pack(fill="x", pady=3)
+            for col in range(3):
+                inv_row.grid_columnconfigure(col, weight=1)
+            for i, (key, lbl) in enumerate([
+                ("MaxStackSize", "Max Stack"), ("SlotSize", "Slot Size"),
+                ("BaseTradeValue", "Trade Value")
+            ]):
+                frame = ctk.CTkFrame(inv_row, fg_color="transparent")
+                frame.grid(row=0, column=i, sticky="ew", padx=2)
+                ctk.CTkLabel(frame, text=lbl, font=ctk.CTkFont(size=11),
+                             width=80, anchor="w").pack(side="left")
+                var = ctk.StringVar(value=str(a.get(key, 0)))
+                self.form_vars[key] = var
+                ctk.CTkEntry(frame, textvariable=var, width=80).pack(side="left", padx=2)
+
+            self._create_dropdown_field(
+                "Def_EnabledState", a["EnabledState"],
+                DEFAULT_ENABLED_STATE, label="Definition Enabled State"
+            )
+
+        return has_data
+
+    def _show_tool_form(self, recipe_json, definition_json):
+        """Render tool form (item recipe + tool definition)."""
+        has_data = False
+
+        if recipe_json and isinstance(recipe_json, dict):
+            has_data = True
+            self._render_item_recipe_section(recipe_json)
+
+        if definition_json and isinstance(definition_json, dict):
+            has_data = True
+            t = extract_tool_fields(definition_json)
+
+            self._create_section_header("Tool Definition", "#00897B")
+
+            self._create_text_field("Def_Name", t["Name"], label="Row Name", readonly=True)
+
+            # Tool stats
+            self._create_subsection_header("Tool Stats")
+            stats_row1 = ctk.CTkFrame(self.form_content, fg_color="transparent")
+            stats_row1.pack(fill="x", pady=3)
+            for col in range(3):
+                stats_row1.grid_columnconfigure(col, weight=1)
+            for i, (key, label) in enumerate([
+                ("Durability", "Durability"),
+                ("DurabilityDecayWhileEquipped", "Durability Decay"),
+                ("CarveHits", "Carve Hits"),
+            ]):
+                frame = ctk.CTkFrame(stats_row1, fg_color="transparent")
+                frame.grid(row=0, column=i, sticky="ew", padx=2)
+                ctk.CTkLabel(frame, text=label, font=ctk.CTkFont(size=11),
+                             width=90, anchor="w").pack(side="left")
+                var = ctk.StringVar(value=str(t[key]))
+                self.form_vars[key] = var
+                ctk.CTkEntry(frame, textvariable=var, width=80).pack(side="left", padx=2)
+
+            stats_row2 = ctk.CTkFrame(self.form_content, fg_color="transparent")
+            stats_row2.pack(fill="x", pady=3)
+            for col in range(3):
+                stats_row2.grid_columnconfigure(col, weight=1)
+            for i, (key, label) in enumerate([
+                ("StaminaCost", "Stamina Cost"),
+                ("EnergyCost", "Energy Cost"),
+                ("NpcMiningRate", "NPC Mining Rate"),
+            ]):
+                frame = ctk.CTkFrame(stats_row2, fg_color="transparent")
+                frame.grid(row=0, column=i, sticky="ew", padx=2)
+                ctk.CTkLabel(frame, text=label, font=ctk.CTkFont(size=11),
+                             width=90, anchor="w").pack(side="left")
+                var = ctk.StringVar(value=str(t[key]))
+                self.form_vars[key] = var
+                ctk.CTkEntry(frame, textvariable=var, width=80).pack(side="left", padx=2)
+
+            # Repair cost
+            if t["InitialRepairCost"]:
+                self._create_subsection_header("Repair Cost")
+                self.materials_frame = ctk.CTkFrame(self.form_content, fg_color="transparent")
+                self.materials_frame.pack(fill="x", pady=5)
+                for mat in t["InitialRepairCost"]:
+                    self._add_material_row(mat["Material"], mat["Amount"])
+
+            # Display & common
+            self._create_subsection_header("Display")
+            self._create_text_field("DisplayName", t["DisplayName"], label="Display Name")
+            self._create_text_field("Description", t["Description"])
+            self._create_text_field("Actor", t["Actor"],
+                                    label="Actor Path", autocomplete_key="Actors")
+            self._create_text_field("Icon", t["Icon"], label="Icon Path", readonly=True)
+
+            tags = t.get("Tags", [])
+            self._create_dropdown_field(
+                "Tags", tags[0] if tags else "",
+                self._get_options("Tags", []), label="Category Tag"
+            )
+
+            self._create_subsection_header("Inventory")
+            self._create_dropdown_field(
+                "Portability", t.get("Portability", "EItemPortability::Storable"),
+                ["EItemPortability::Storable", "EItemPortability::NotStorable",
+                 "EItemPortability::Holdable"], label="Portability"
+            )
+            inv_row = ctk.CTkFrame(self.form_content, fg_color="transparent")
+            inv_row.pack(fill="x", pady=3)
+            for col in range(3):
+                inv_row.grid_columnconfigure(col, weight=1)
+            for i, (key, lbl) in enumerate([
+                ("MaxStackSize", "Max Stack"), ("SlotSize", "Slot Size"),
+                ("BaseTradeValue", "Trade Value")
+            ]):
+                frame = ctk.CTkFrame(inv_row, fg_color="transparent")
+                frame.grid(row=0, column=i, sticky="ew", padx=2)
+                ctk.CTkLabel(frame, text=lbl, font=ctk.CTkFont(size=11),
+                             width=80, anchor="w").pack(side="left")
+                var = ctk.StringVar(value=str(t.get(key, 0)))
+                self.form_vars[key] = var
+                ctk.CTkEntry(frame, textvariable=var, width=80).pack(side="left", padx=2)
+
+            self._create_dropdown_field(
+                "Def_EnabledState", t["EnabledState"],
+                DEFAULT_ENABLED_STATE, label="Definition Enabled State"
+            )
+
+        return has_data
+
+    def _show_items_form(self, recipe_json, definition_json):
+        """Render generic items form (item recipe + item definition)."""
+        has_data = False
+
+        if recipe_json and isinstance(recipe_json, dict):
+            has_data = True
+            self._render_item_recipe_section(recipe_json)
+
+        if definition_json and isinstance(definition_json, dict):
+            has_data = True
+            item = extract_item_fields(definition_json)
+            self._render_common_item_fields(item, "Item Definition", "#5C6BC0")
+
+        return has_data
+
+    def _show_flora_form(self, definition_json):
+        """Render flora form (no recipe)."""
+        if not definition_json or not isinstance(definition_json, dict):
+            return False
+
+        f = extract_flora_fields(definition_json)
+
+        self._create_section_header("Flora Definition", "#43A047")
+
+        self._create_text_field("Def_Name", f["Name"], label="Row Name", readonly=True)
+        self._create_text_field("DisplayName", f["DisplayName"], label="Display Name")
+
+        # Item references
+        self._create_subsection_header("Item References")
+        self._create_text_field("ItemRowHandle", f["ItemRowHandle"],
+                                label="Item Row Handle", autocomplete_key="AllValues")
+        self._create_text_field("OverrideItemDropHandle", f["OverrideItemDropHandle"],
+                                label="Override Drop Handle", autocomplete_key="AllValues")
+
+        # Drop amounts
+        self._create_subsection_header("Drop Amounts")
+        drop_row = ctk.CTkFrame(self.form_content, fg_color="transparent")
+        drop_row.pack(fill="x", pady=3)
+        for col in range(2):
+            drop_row.grid_columnconfigure(col, weight=1)
+        for i, (key, label) in enumerate([("MinCount", "Min Count"), ("MaxCount", "Max Count")]):
+            frame = ctk.CTkFrame(drop_row, fg_color="transparent")
+            frame.grid(row=0, column=i, sticky="ew", padx=2)
+            ctk.CTkLabel(frame, text=label, font=ctk.CTkFont(size=11),
+                         width=80, anchor="w").pack(side="left")
+            var = ctk.StringVar(value=str(f[key]))
+            self.form_vars[key] = var
+            ctk.CTkEntry(frame, textvariable=var, width=80).pack(side="left", padx=2)
+
+        # Growth timing
+        self._create_subsection_header("Growth Timing")
+        for key, label in [
+            ("NumToGrowPerCycle", "Grow Per Cycle"),
+            ("RegrowthSleepCount", "Regrowth Sleep Count"),
+            ("TimeUntilGrowingStage", "Time Until Growing"),
+            ("TimeUntilReadyStage", "Time Until Ready"),
+            ("TimeUntilSpoiledStage", "Time Until Spoiled"),
+            ("MinVariableGrowthTime", "Min Variable Growth"),
+            ("MaxVariableGrowthTime", "Max Variable Growth"),
+        ]:
+            self._create_text_field(key, str(f[key]), label=label, width=200)
+
+        # Growth properties
+        self._create_subsection_header("Growth Properties")
+        bool_row = ctk.CTkFrame(self.form_content, fg_color="transparent")
+        bool_row.pack(fill="x", pady=4)
+        for bf in ["bPrefersInShade", "bCanSpoil", "IsPlantable", "IsFungus"]:
+            self._create_checkbox_field(bool_row, bf, f.get(bf, False))
+
+        self._create_text_field("MinimumFarmingLight", str(f["MinimumFarmingLight"]),
+                                label="Min Farming Light", width=200)
+
+        # Enum dropdowns
+        enum_row = ctk.CTkFrame(self.form_content, fg_color="transparent")
+        enum_row.pack(fill="x", pady=3)
+        self._create_dropdown_field_inline(
+            enum_row, "FloraType", f["FloraType"],
+            ["EMorFarmingFloraType::Flora", "EMorFarmingFloraType::Fungus",
+             "EMorFarmingFloraType::Tree", "EMorFarmingFloraType::Crop"]
+        )
+        self._create_dropdown_field_inline(
+            enum_row, "GrowthRate", f["GrowthRate"],
+            ["EMorFarmingFloraGrowthRate::None", "EMorFarmingFloraGrowthRate::Slow",
+             "EMorFarmingFloraGrowthRate::Medium", "EMorFarmingFloraGrowthRate::Fast"]
+        )
+
+        # Scale
+        self._create_subsection_header("Visual")
+        scale_row = ctk.CTkFrame(self.form_content, fg_color="transparent")
+        scale_row.pack(fill="x", pady=3)
+        for col in range(2):
+            scale_row.grid_columnconfigure(col, weight=1)
+        for i, (key, label) in enumerate([
+            ("MinRandomScale", "Min Scale"), ("MaxRandomScale", "Max Scale")
+        ]):
+            frame = ctk.CTkFrame(scale_row, fg_color="transparent")
+            frame.grid(row=0, column=i, sticky="ew", padx=2)
+            ctk.CTkLabel(frame, text=label, font=ctk.CTkFont(size=11),
+                         width=80, anchor="w").pack(side="left")
+            var = ctk.StringVar(value=str(f[key]))
+            self.form_vars[key] = var
+            ctk.CTkEntry(frame, textvariable=var, width=80).pack(side="left", padx=2)
+
+        self._create_text_field("ReceptacleActorToSpawn", f["ReceptacleActorToSpawn"],
+                                label="Receptacle Actor", autocomplete_key="Actors")
+
+        self._create_dropdown_field(
+            "Def_EnabledState", f["EnabledState"],
+            DEFAULT_ENABLED_STATE, label="Enabled State"
+        )
+
+        return True
+
+    def _show_loot_form(self, definition_json):
+        """Render loot form (no recipe, simple fields)."""
+        if not definition_json or not isinstance(definition_json, dict):
+            return False
+
+        lt = extract_loot_fields(definition_json)
+
+        self._create_section_header("Loot Definition", "#E53935")
+
+        self._create_text_field("Def_Name", lt["Name"], label="Row Name", readonly=True)
+
+        # Required tags
+        self._create_text_field(
+            "RequiredTags", ", ".join(lt["RequiredTags"]),
+            label="Required Tags", autocomplete_key="LootTags"
+        )
+
+        # Item handle
+        self._create_text_field(
+            "ItemHandle", lt["ItemHandle"],
+            label="Item Handle", autocomplete_key="AllValues"
+        )
+
+        # Drop settings
+        self._create_subsection_header("Drop Settings")
+        self._create_text_field("DropChance", str(lt["DropChance"]),
+                                label="Drop Chance (0-1)", width=200)
+
+        qty_row = ctk.CTkFrame(self.form_content, fg_color="transparent")
+        qty_row.pack(fill="x", pady=3)
+        for col in range(2):
+            qty_row.grid_columnconfigure(col, weight=1)
+        for i, (key, label) in enumerate([
+            ("MinQuantity", "Min Quantity"), ("MaxQuantity", "Max Quantity")
+        ]):
+            frame = ctk.CTkFrame(qty_row, fg_color="transparent")
+            frame.grid(row=0, column=i, sticky="ew", padx=2)
+            ctk.CTkLabel(frame, text=label, font=ctk.CTkFont(size=11),
+                         width=80, anchor="w").pack(side="left")
+            var = ctk.StringVar(value=str(lt[key]))
+            self.form_vars[key] = var
+            ctk.CTkEntry(frame, textvariable=var, width=80).pack(side="left", padx=2)
+
+        self._create_dropdown_field(
+            "Def_EnabledState", lt["EnabledState"],
+            DEFAULT_ENABLED_STATE, label="Enabled State"
+        )
+
+        return True
 
     def _create_action_buttons(self):
         """Create Save and other action buttons at the bottom of the form."""
@@ -2842,11 +4241,22 @@ class BuildingsView(ctk.CTkFrame):
             self._set_status("No recipe or construction data to save", is_error=True)
             return
 
-        # Apply form values to in-memory JSON dicts
-        if recipe_json:
-            self._update_recipe_json(recipe_json)
-        if construction_json:
-            self._update_construction_json(construction_json)
+        mode = self.view_mode or 'buildings'
+
+        # Apply form values to in-memory JSON dicts based on view mode
+        if mode == 'buildings':
+            if recipe_json:
+                self._update_recipe_json(recipe_json)
+            if construction_json:
+                self._update_construction_json(construction_json)
+        elif mode in ('weapons', 'armor', 'tools', 'items'):
+            if recipe_json:
+                self._update_item_recipe_json(recipe_json)
+            if construction_json:
+                self._update_generic_definition_json(construction_json)
+        elif mode in ('flora', 'loot'):
+            if construction_json:
+                self._update_generic_definition_json(construction_json)
 
         # Always save to cache files
         recipes_path = self._get_cache_recipes_path()
@@ -2901,10 +4311,17 @@ class BuildingsView(ctk.CTkFrame):
         # Field name -> autocomplete key mapping for comma-separated text fields
         field_to_key = {
             "ResultConstructionHandle": "ResultConstructions",
+            "ResultItemHandle": "AllValues",
             "DefaultRequiredConstructions": "Constructions",
             "SandboxRequiredConstructions": "Constructions",
             "Actor": "Actors",
             "BackwardCompatibilityActors": "Actors",
+            "ReceptacleActorToSpawn": "Actors",
+            "DamageType": "DamageTypes",
+            "ItemRowHandle": "AllValues",
+            "OverrideItemDropHandle": "AllValues",
+            "ItemHandle": "AllValues",
+            "RequiredTags": "LootTags",
         }
 
         changed = False
@@ -3173,6 +4590,182 @@ class BuildingsView(ctk.CTkFrame):
                 if "Construction_EnabledState" in self.form_vars:
                     prop["Value"] = self.form_vars["Construction_EnabledState"].get()
 
+    def _update_item_recipe_json(self, recipe_json: dict):
+        """Update item recipe JSON (weapons/armor/tools/items) with form values."""
+        for prop in recipe_json.get("Value", []):
+            prop_name = prop.get("Name", "")
+            prop_type = prop.get("$type", "")
+
+            if "EnumPropertyData" in prop_type:
+                if prop_name in self.form_vars:
+                    prop["Value"] = self.form_vars[prop_name].get()
+                elif prop_name == "EnabledState" and "Recipe_EnabledState" in self.form_vars:
+                    prop["Value"] = self.form_vars["Recipe_EnabledState"].get()
+            elif "BoolPropertyData" in prop_type:
+                if prop_name in self.form_vars:
+                    prop["Value"] = self.form_vars[prop_name].get()
+            elif "FloatPropertyData" in prop_type:
+                if prop_name in self.form_vars:
+                    try:
+                        prop["Value"] = float(self.form_vars[prop_name].get())
+                    except ValueError:
+                        pass
+            elif "IntPropertyData" in prop_type:
+                if prop_name in self.form_vars:
+                    try:
+                        prop["Value"] = int(self.form_vars[prop_name].get())
+                    except ValueError:
+                        pass
+            elif prop_name == "ResultItemHandle":
+                if "ResultItemHandle" in self.form_vars:
+                    for handle_prop in prop.get("Value", []):
+                        if handle_prop.get("Name") == "RowName":
+                            handle_prop["Value"] = self.form_vars["ResultItemHandle"].get()
+            elif prop_name == "DefaultRequiredMaterials":
+                new_materials = []
+                for row in self.material_rows:
+                    if row.get("removed"):
+                        continue
+                    mat_name = self._parse_material_name(row["material_var"].get())
+                    try:
+                        mat_amount = int(row["amount_var"].get())
+                    except ValueError:
+                        mat_amount = 1
+                    new_materials.append(self._build_material_entry(mat_name, mat_amount))
+                prop["Value"] = new_materials
+            elif prop_name == "DefaultRequiredConstructions":
+                if "DefaultRequiredConstructions" in self.form_vars:
+                    const_str = self.form_vars["DefaultRequiredConstructions"].get().strip()
+                    if const_str:
+                        constructions = [c.strip() for c in const_str.split(",") if c.strip()]
+                        prop["Value"] = self._build_unlock_required_constructions(constructions)
+                    else:
+                        prop["Value"] = []
+            elif prop_name == "DefaultUnlocks":
+                self._update_unlock_struct(prop, "DefaultUnlocks")
+            elif prop_name == "SandboxUnlocks":
+                self._update_unlock_struct(prop, "SandboxUnlocks")
+            elif prop_name == "SandboxRequiredMaterials":
+                new_materials = []
+                for row in self.sandbox_material_rows:
+                    if row.get("removed"):
+                        continue
+                    mat_name = self._parse_material_name(row["material_var"].get())
+                    try:
+                        mat_amount = int(row["amount_var"].get())
+                    except ValueError:
+                        mat_amount = 1
+                    entry = self._build_material_entry(mat_name, mat_amount)
+                    entry["Name"] = "SandboxRequiredMaterials"
+                    new_materials.append(entry)
+                prop["Value"] = new_materials
+            elif prop_name == "SandboxRequiredConstructions":
+                if "SandboxRequiredConstructions" in self.form_vars:
+                    const_str = self.form_vars["SandboxRequiredConstructions"].get().strip()
+                    if const_str:
+                        constructions = [c.strip() for c in const_str.split(",") if c.strip()]
+                        prop["Value"] = self._build_unlock_required_constructions(constructions)
+                    else:
+                        prop["Value"] = []
+
+    def _update_generic_definition_json(self, definition_json: dict):
+        """Update any definition JSON generically from form_vars.
+
+        Works for weapons, armor, tools, items, flora, and loot definitions.
+        Iterates over the Value array and matches property names to form_vars.
+        """
+        for prop in definition_json.get("Value", []):
+            prop_name = prop.get("Name", "")
+            prop_type = prop.get("$type", "")
+
+            # Text fields (DisplayName, Description)
+            if "TextPropertyData" in prop_type:
+                if prop_name in self.form_vars:
+                    prop["Value"] = self.form_vars[prop_name].get()
+
+            # Enum fields (Portability, EnabledState, FloraType, etc.)
+            elif "EnumPropertyData" in prop_type:
+                if prop_name in self.form_vars:
+                    prop["Value"] = self.form_vars[prop_name].get()
+                elif prop_name == "EnabledState" and "Def_EnabledState" in self.form_vars:
+                    prop["Value"] = self.form_vars["Def_EnabledState"].get()
+
+            # Bool fields
+            elif "BoolPropertyData" in prop_type:
+                if prop_name in self.form_vars:
+                    prop["Value"] = self.form_vars[prop_name].get()
+
+            # Float fields
+            elif "FloatPropertyData" in prop_type:
+                if prop_name in self.form_vars:
+                    try:
+                        prop["Value"] = float(self.form_vars[prop_name].get())
+                    except ValueError:
+                        pass
+
+            # Int fields
+            elif "IntPropertyData" in prop_type:
+                if prop_name in self.form_vars:
+                    try:
+                        prop["Value"] = int(self.form_vars[prop_name].get())
+                    except ValueError:
+                        pass
+
+            # Byte fields (Tier)
+            elif "BytePropertyData" in prop_type:
+                if prop_name in self.form_vars:
+                    try:
+                        prop["Value"] = int(self.form_vars[prop_name].get())
+                    except ValueError:
+                        pass
+
+            # Tags (GameplayTagContainer)
+            elif prop_name == "Tags" and "StructPropertyData" in prop_type:
+                if "Tags" in self.form_vars:
+                    tag_val = self.form_vars["Tags"].get()
+                    for tag_prop in prop.get("Value", []):
+                        if tag_prop.get("Name") == "Tags":
+                            tag_prop["Value"] = [tag_val] if tag_val else []
+
+            # DamageType tag (weapon-specific)
+            elif prop_name == "DamageType" and "StructPropertyData" in prop_type:
+                if "DamageType" in self.form_vars:
+                    for inner in prop.get("Value", []):
+                        if inner.get("Name") == "TagName":
+                            inner["Value"] = self.form_vars["DamageType"].get()
+
+            # Handle structs (ItemRowHandle, OverrideItemDropHandle, ItemHandle)
+            elif prop_name in ("ItemRowHandle", "OverrideItemDropHandle", "ItemHandle"):
+                if prop_name in self.form_vars:
+                    for inner in prop.get("Value", []):
+                        if inner.get("Name") == "RowName":
+                            inner["Value"] = self.form_vars[prop_name].get()
+
+            # Required tags (loot)
+            elif prop_name == "RequiredTags" and "StructPropertyData" in prop_type:
+                if "RequiredTags" in self.form_vars:
+                    tags_str = self.form_vars["RequiredTags"].get().strip()
+                    tag_list = [t.strip() for t in tags_str.split(",") if t.strip()] if tags_str else []
+                    for tag_prop in prop.get("Value", []):
+                        if tag_prop.get("Name") in ("Tags", "RequiredTags"):
+                            tag_prop["Value"] = tag_list
+
+            # InitialRepairCost (material rows)
+            elif prop_name == "InitialRepairCost":
+                new_materials = []
+                for row in self.material_rows:
+                    if row.get("removed"):
+                        continue
+                    mat_name = self._parse_material_name(row["material_var"].get())
+                    try:
+                        mat_amount = int(row["amount_var"].get())
+                    except ValueError:
+                        mat_amount = 1
+                    entry = self._build_material_entry(mat_name, mat_amount)
+                    entry["Name"] = "InitialRepairCost"
+                    new_materials.append(entry)
+                prop["Value"] = new_materials
+
     def _build_material_entry(self, material_name: str, amount: int) -> dict:
         """Build a material entry structure for the recipe JSON."""
         return {
@@ -3291,65 +4884,119 @@ class BuildingsView(ctk.CTkFrame):
     # SECRETS SOURCE LOADING FUNCTIONS
     # -------------------------------------------------------------------------
 
-    @staticmethod
-    def _get_cache_dir() -> Path:
-        """Get path to the buildings cache directory."""
-        return get_appdata_dir() / 'cache' / 'buildings'
+    def _get_cache_dir(self) -> Path:
+        """Get path to the cache directory for the current view mode.
+
+        If a change secrets prefix is active, returns the per-change-set
+        cache directory so each set has its own copy of modified JSONs.
+        Otherwise falls back to the shared cache.
+        """
+        prefix = self.secrets_prefix_var.get() if hasattr(self, 'secrets_prefix_var') else ""
+        mode = self.view_mode or 'buildings'
+        if prefix:
+            return get_default_changesecrets_dir() / prefix / mode
+        return get_appdata_dir() / 'cache' / mode
 
     def _get_cache_recipes_path(self) -> Path:
-        """Get path to cached DT_ConstructionRecipes.json."""
-        return self._get_cache_dir() / 'DT_ConstructionRecipes.json'
+        """Get path to cached recipes JSON for the current view mode."""
+        if self.view_mode in ('weapons', 'armor', 'tools', 'items'):
+            return self._get_cache_dir() / 'DT_ItemRecipes.json'
+        if self.view_mode == 'buildings':
+            return self._get_cache_dir() / 'DT_ConstructionRecipes.json'
+        return None  # flora, loot have no recipes
 
     def _get_cache_constructions_path(self) -> Path:
-        """Get path to cached DT_Constructions.json."""
-        return self._get_cache_dir() / 'DT_Constructions.json'
+        """Get path to cached definitions JSON for the current view mode."""
+        defs_map = {
+            'buildings': 'DT_Constructions.json',
+            'weapons': 'DT_Weapons.json',
+            'armor': 'DT_Armor.json',
+            'tools': 'DT_Tools.json',
+            'items': 'DT_Items.json',
+            'flora': 'DT_Moria_Flora.json',
+            'loot': 'DT_Loot.json',
+        }
+        return self._get_cache_dir() / defs_map.get(self.view_mode, 'DT_Constructions.json')
 
     def _ensure_cache_files(self):
-        """Copy Secrets Source building JSONs to cache if not already cached.
+        """Copy Secrets Source JSONs to cache if not already cached.
 
-        Copies from Secrets Source to %APPDATA%/MoriaMODCreator/cache/buildings/.
+        Uses view_mode to determine the correct source files and cache directory.
         Only copies if cache files don't exist yet (use _refresh_cache to force).
         """
         cache_dir = self._get_cache_dir()
         cache_dir.mkdir(parents=True, exist_ok=True)
 
+        # Cache recipes (if this mode has them)
         src_recipes = self._get_secrets_recipes_path()
-        src_constructions = self._get_secrets_constructions_path()
         cache_recipes = self._get_cache_recipes_path()
-        cache_constructions = self._get_cache_constructions_path()
-
-        if src_recipes.exists() and not cache_recipes.exists():
+        if src_recipes and cache_recipes and src_recipes.exists() and not cache_recipes.exists():
             shutil.copy2(src_recipes, cache_recipes)
             logger.info("Cached %s", cache_recipes.name)
 
-        if src_constructions.exists() and not cache_constructions.exists():
-            shutil.copy2(src_constructions, cache_constructions)
-            logger.info("Cached %s", cache_constructions.name)
+        # Cache definitions
+        src_defs = self._get_secrets_constructions_path()
+        cache_defs = self._get_cache_constructions_path()
+        if src_defs.exists() and not cache_defs.exists():
+            shutil.copy2(src_defs, cache_defs)
+            logger.info("Cached %s", cache_defs.name)
 
     def _refresh_cache(self):
-        """Force-refresh cache by deleting old cache and re-copying from Secrets Source."""
+        """Force-refresh cache by deleting old cache and re-copying from Secrets Source.
+
+        Preserves .ini files (e.g. checked_items.ini) across refreshes.
+        """
         cache_dir = self._get_cache_dir()
 
-        # Delete the entire cache directory to start fresh
+        # Delete non-INI files from cache directory to start fresh
         if cache_dir.exists():
-            shutil.rmtree(cache_dir)
-            logger.info("Deleted cache directory: %s", cache_dir)
+            for item in cache_dir.iterdir():
+                if item.is_file() and item.suffix.lower() != '.ini':
+                    item.unlink()
+            logger.info("Cleared cache directory (preserved .ini): %s", cache_dir)
 
         cache_dir.mkdir(parents=True, exist_ok=True)
 
+        # Refresh recipes (if this mode has them)
         src_recipes = self._get_secrets_recipes_path()
-        src_constructions = self._get_secrets_constructions_path()
-
-        if src_recipes.exists():
-            shutil.copy2(src_recipes, self._get_cache_recipes_path())
+        cache_recipes = self._get_cache_recipes_path()
+        if src_recipes and cache_recipes and src_recipes.exists():
+            shutil.copy2(src_recipes, cache_recipes)
             logger.info("Refreshed cache: %s", src_recipes.name)
 
-        if src_constructions.exists():
-            shutil.copy2(src_constructions, self._get_cache_constructions_path())
-            logger.info("Refreshed cache: %s", src_constructions.name)
+        # Refresh definitions
+        src_defs = self._get_secrets_constructions_path()
+        if src_defs.exists():
+            shutil.copy2(src_defs, self._get_cache_constructions_path())
+            logger.info("Refreshed cache: %s", src_defs.name)
+
+    def _load_secrets_prefix(self):
+        """Load the persisted secrets prefix from changesecrets config."""
+        config_file = get_default_changesecrets_dir() / 'current_prefix.ini'
+        if config_file.exists():
+            try:
+                config = configparser.ConfigParser()
+                config.read(config_file, encoding='utf-8')
+                prefix = config.get('ChangeSecrets', 'current_prefix', fallback='')
+                if hasattr(self, 'secrets_prefix_var'):
+                    self.secrets_prefix_var.set(prefix)
+            except (configparser.Error, OSError):
+                pass
+
+    def _save_secrets_prefix(self):
+        """Save the current secrets prefix to changesecrets config."""
+        secrets_dir = get_default_changesecrets_dir()
+        secrets_dir.mkdir(parents=True, exist_ok=True)
+        config_file = secrets_dir / 'current_prefix.ini'
+        config = configparser.ConfigParser()
+        config['ChangeSecrets'] = {
+            'current_prefix': self.secrets_prefix_var.get() if hasattr(self, 'secrets_prefix_var') else ''
+        }
+        with open(config_file, 'w', encoding='utf-8') as f:
+            config.write(f)
 
     def _get_checked_ini_path(self) -> Path:
-        """Get path to checked_items.ini in the cache directory."""
+        """Get path to checked_items.ini in the current cache directory."""
         return self._get_cache_dir() / 'checked_items.ini'
 
     def _save_checked_states_to_ini(self):
@@ -3391,25 +5038,51 @@ class BuildingsView(ctk.CTkFrame):
 
         return set()
 
-    def _get_secrets_recipes_path(self) -> Path:
-        """Get path to DT_ConstructionRecipes.json in Secrets Source (original)."""
-        return (get_appdata_dir() / 'Secrets Source' / 'jsondata' / 'Moria'
-                / 'Content' / 'Tech' / 'Data' / 'Building' / 'DT_ConstructionRecipes.json')
+    def _get_secrets_recipes_path(self) -> Path | None:
+        """Get path to recipes JSON in Secrets Source for the current view mode."""
+        base = get_appdata_dir() / 'Secrets Source' / 'jsondata' / 'Moria' / 'Content'
+        if self.view_mode in ('weapons', 'armor', 'tools', 'items'):
+            return base / 'Tech' / 'Data' / 'Items' / 'DT_ItemRecipes.json'
+        if self.view_mode == 'buildings':
+            return base / 'Tech' / 'Data' / 'Building' / 'DT_ConstructionRecipes.json'
+        return None  # flora, loot have no recipes
 
     def _get_secrets_constructions_path(self) -> Path:
-        """Get path to DT_Constructions.json in Secrets Source (original)."""
-        return (get_appdata_dir() / 'Secrets Source' / 'jsondata' / 'Moria'
-                / 'Content' / 'Tech' / 'Data' / 'Building' / 'DT_Constructions.json')
+        """Get path to definitions JSON in Secrets Source for the current view mode."""
+        base = get_appdata_dir() / 'Secrets Source' / 'jsondata' / 'Moria' / 'Content'
+        defs_map = {
+            'buildings': 'Tech/Data/Building/DT_Constructions.json',
+            'weapons': 'Tech/Data/Items/DT_Weapons.json',
+            'armor': 'Tech/Data/Items/DT_Armor.json',
+            'tools': 'Tech/Data/Items/DT_Tools.json',
+            'items': 'Tech/Data/Items/DT_Items.json',
+            'flora': 'Tech/Data/Gameworld/DT_Moria_Flora.json',
+            'loot': 'Character/AI/DT_Loot.json',
+        }
+        return base / defs_map.get(self.view_mode, 'Tech/Data/Building/DT_Constructions.json')
 
-    def _get_game_recipes_path(self) -> Path:
-        """Get path to DT_ConstructionRecipes.json in game output."""
-        return (get_appdata_dir() / 'output' / 'jsondata' / 'Moria' / 'Content'
-                / 'Tech' / 'Data' / 'Building' / 'DT_ConstructionRecipes.json')
+    def _get_game_recipes_path(self) -> Path | None:
+        """Get path to recipes JSON in game output for the current view mode."""
+        base = get_appdata_dir() / 'output' / 'jsondata' / 'Moria' / 'Content'
+        if self.view_mode in ('weapons', 'armor', 'tools', 'items'):
+            return base / 'Tech' / 'Data' / 'Items' / 'DT_ItemRecipes.json'
+        if self.view_mode == 'buildings':
+            return base / 'Tech' / 'Data' / 'Building' / 'DT_ConstructionRecipes.json'
+        return None  # flora, loot have no recipes
 
     def _get_game_constructions_path(self) -> Path:
-        """Get path to DT_Constructions.json in game output."""
-        return (get_appdata_dir() / 'output' / 'jsondata' / 'Moria' / 'Content'
-                / 'Tech' / 'Data' / 'Building' / 'DT_Constructions.json')
+        """Get path to definitions JSON in game output for the current view mode."""
+        base = get_appdata_dir() / 'output' / 'jsondata' / 'Moria' / 'Content'
+        defs_map = {
+            'buildings': 'Tech/Data/Building/DT_Constructions.json',
+            'weapons': 'Tech/Data/Items/DT_Weapons.json',
+            'armor': 'Tech/Data/Items/DT_Armor.json',
+            'tools': 'Tech/Data/Items/DT_Tools.json',
+            'items': 'Tech/Data/Items/DT_Items.json',
+            'flora': 'Tech/Data/Gameworld/DT_Moria_Flora.json',
+            'loot': 'Character/AI/DT_Loot.json',
+        }
+        return base / defs_map.get(self.view_mode, 'Tech/Data/Building/DT_Constructions.json')
 
     def _get_string_tables_dir(self) -> Path:
         """Get path to the StringTables directory in Secrets Source."""
@@ -3858,24 +5531,190 @@ class BuildingsView(ctk.CTkFrame):
         return names
 
     def _load_secrets_weapons(self):
-        """Placeholder for loading weapons from Secrets Source."""
+        """Load weapon items from Secrets mod, showing only mod-added items.
+
+        Shows items that exist in BOTH:
+        - New recipes (in Secret ItemRecipes but not in Game ItemRecipes)
+        - New weapons (in Secret Weapons but not in Game Weapons)
+        """
         self.view_mode = 'weapons'
-        self._set_status("Weapons loading not yet implemented")
-        # Clear the list
-        for widget in self.building_list.winfo_children():
-            widget.destroy()
-        self.building_list_items.clear()
-        self.count_label.configure(text="0 items")
+        self._set_status("Loading Secrets weapons...")
+
+        self._ensure_cache_files()
+
+        secret_recipe_names = self._get_names_from_table_data(self._get_cache_recipes_path())
+        game_recipe_names = self._get_names_from_table_data(self._get_game_recipes_path())
+        secret_weapon_names = self._get_names_from_table_data(self._get_cache_constructions_path())
+        game_weapon_names = self._get_names_from_table_data(self._get_game_constructions_path())
+
+        new_recipes = secret_recipe_names - game_recipe_names
+        new_weapons = secret_weapon_names - game_weapon_names
+        matching_items = new_recipes & new_weapons
+
+        logger.info("New item recipes: %s, New weapons: %s, Matching: %s",
+                     len(new_recipes), len(new_weapons), len(matching_items))
+
+        self.secrets_recipes = {}
+        for name in matching_items:
+            self.secrets_recipes[name] = {'Name': name}
+
+        self.game_recipe_names = game_recipe_names
+        self.secrets_constructions = {name: {'Name': name} for name in matching_items}
+
+        if not self.secrets_recipes:
+            self._set_status("No mod-unique weapons found in Secrets Source")
+        else:
+            self._set_status(f"Found {len(self.secrets_recipes)} mod weapons")
+
+        self._populate_secrets_list(self.secrets_recipes)
 
     def _load_secrets_armor(self):
-        """Placeholder for loading armor from Secrets Source."""
+        """Load armor items from Secrets mod, showing only mod-added items.
+
+        Shows items that exist in BOTH:
+        - New recipes (in Secret ItemRecipes but not in Game ItemRecipes)
+        - New armor (in Secret Armor but not in Game Armor)
+        """
         self.view_mode = 'armor'
-        self._set_status("Armor loading not yet implemented")
-        # Clear the list
-        for widget in self.building_list.winfo_children():
-            widget.destroy()
-        self.building_list_items.clear()
-        self.count_label.configure(text="0 items")
+        self._set_status("Loading Secrets armor...")
+
+        self._ensure_cache_files()
+
+        secret_recipe_names = self._get_names_from_table_data(self._get_cache_recipes_path())
+        game_recipe_names = self._get_names_from_table_data(self._get_game_recipes_path())
+        secret_armor_names = self._get_names_from_table_data(self._get_cache_constructions_path())
+        game_armor_names = self._get_names_from_table_data(self._get_game_constructions_path())
+
+        new_recipes = secret_recipe_names - game_recipe_names
+        new_armor = secret_armor_names - game_armor_names
+        matching_items = new_recipes & new_armor
+
+        logger.info("New item recipes: %s, New armor: %s, Matching: %s",
+                     len(new_recipes), len(new_armor), len(matching_items))
+
+        self.secrets_recipes = {}
+        for name in matching_items:
+            self.secrets_recipes[name] = {'Name': name}
+
+        self.game_recipe_names = game_recipe_names
+        self.secrets_constructions = {name: {'Name': name} for name in matching_items}
+
+        if not self.secrets_recipes:
+            self._set_status("No mod-unique armor found in Secrets Source")
+        else:
+            self._set_status(f"Found {len(self.secrets_recipes)} mod armor items")
+
+        self._populate_secrets_list(self.secrets_recipes)
+
+    def _load_secrets_tools(self):
+        """Load tool items from Secrets mod, showing only mod-added items."""
+        self.view_mode = 'tools'
+        self._set_status("Loading Secrets tools...")
+
+        self._ensure_cache_files()
+
+        secret_recipe_names = self._get_names_from_table_data(self._get_cache_recipes_path())
+        game_recipe_names = self._get_names_from_table_data(self._get_game_recipes_path())
+        secret_tool_names = self._get_names_from_table_data(self._get_cache_constructions_path())
+        game_tool_names = self._get_names_from_table_data(self._get_game_constructions_path())
+
+        new_recipes = secret_recipe_names - game_recipe_names
+        new_tools = secret_tool_names - game_tool_names
+        matching_items = new_recipes & new_tools
+
+        logger.info("New item recipes: %s, New tools: %s, Matching: %s",
+                     len(new_recipes), len(new_tools), len(matching_items))
+
+        self.secrets_recipes = {name: {'Name': name} for name in matching_items}
+        self.game_recipe_names = game_recipe_names
+        self.secrets_constructions = {name: {'Name': name} for name in matching_items}
+
+        if not self.secrets_recipes:
+            self._set_status("No mod-unique tools found in Secrets Source")
+        else:
+            self._set_status(f"Found {len(self.secrets_recipes)} mod tools")
+
+        self._populate_secrets_list(self.secrets_recipes)
+
+    def _load_secrets_flora(self):
+        """Load flora items from Secrets mod, showing only mod-added items."""
+        self.view_mode = 'flora'
+        self._set_status("Loading Secrets flora...")
+
+        self._ensure_cache_files()
+
+        secret_flora_names = self._get_names_from_table_data(self._get_cache_constructions_path())
+        game_flora_names = self._get_names_from_table_data(self._get_game_constructions_path())
+
+        new_flora = secret_flora_names - game_flora_names
+
+        logger.info("New flora: %s", len(new_flora))
+
+        self.secrets_recipes = {name: {'Name': name} for name in new_flora}
+        self.game_recipe_names = set()
+        self.secrets_constructions = {name: {'Name': name} for name in new_flora}
+
+        if not self.secrets_recipes:
+            self._set_status("No mod-unique flora found in Secrets Source")
+        else:
+            self._set_status(f"Found {len(self.secrets_recipes)} mod flora items")
+
+        self._populate_secrets_list(self.secrets_recipes)
+
+    def _load_secrets_loot(self):
+        """Load loot items from Secrets mod, showing only mod-added items."""
+        self.view_mode = 'loot'
+        self._set_status("Loading Secrets loot...")
+
+        self._ensure_cache_files()
+
+        secret_loot_names = self._get_names_from_table_data(self._get_cache_constructions_path())
+        game_loot_names = self._get_names_from_table_data(self._get_game_constructions_path())
+
+        new_loot = secret_loot_names - game_loot_names
+
+        logger.info("New loot: %s", len(new_loot))
+
+        self.secrets_recipes = {name: {'Name': name} for name in new_loot}
+        self.game_recipe_names = set()
+        self.secrets_constructions = {name: {'Name': name} for name in new_loot}
+
+        if not self.secrets_recipes:
+            self._set_status("No mod-unique loot found in Secrets Source")
+        else:
+            self._set_status(f"Found {len(self.secrets_recipes)} mod loot items")
+
+        self._populate_secrets_list(self.secrets_recipes)
+
+    def _load_secrets_items(self):
+        """Load general items from Secrets mod, showing only mod-added items."""
+        self.view_mode = 'items'
+        self._set_status("Loading Secrets items...")
+
+        self._ensure_cache_files()
+
+        secret_recipe_names = self._get_names_from_table_data(self._get_cache_recipes_path())
+        game_recipe_names = self._get_names_from_table_data(self._get_game_recipes_path())
+        secret_item_names = self._get_names_from_table_data(self._get_cache_constructions_path())
+        game_item_names = self._get_names_from_table_data(self._get_game_constructions_path())
+
+        new_recipes = secret_recipe_names - game_recipe_names
+        new_items = secret_item_names - game_item_names
+        matching_items = new_recipes & new_items
+
+        logger.info("New item recipes: %s, New items: %s, Matching: %s",
+                     len(new_recipes), len(new_items), len(matching_items))
+
+        self.secrets_recipes = {name: {'Name': name} for name in matching_items}
+        self.game_recipe_names = game_recipe_names
+        self.secrets_constructions = {name: {'Name': name} for name in matching_items}
+
+        if not self.secrets_recipes:
+            self._set_status("No mod-unique items found in Secrets Source")
+        else:
+            self._set_status(f"Found {len(self.secrets_recipes)} mod items")
+
+        self._populate_secrets_list(self.secrets_recipes)
 
     def _populate_secrets_list(self, recipes: dict):
         """Populate the left pane with secrets recipes.
@@ -4011,7 +5850,8 @@ class BuildingsView(ctk.CTkFrame):
         self._highlight_secrets_item(recipe_name)
 
         # Load full row data from the cached JSON files
-        recipe_row = self._get_row_by_name(self._get_cache_recipes_path(), recipe_name)
+        cache_recipes_path = self._get_cache_recipes_path()
+        recipe_row = self._get_row_by_name(cache_recipes_path, recipe_name) if cache_recipes_path else {}
         construction_row = self._get_row_by_name(self._get_cache_constructions_path(), recipe_name)
 
         # Extract fields from the row data

@@ -15,6 +15,9 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)  # Our logger stays at DEBUG
 
+# Enable INFO logging for all src.* modules so build_manager logs are visible
+logging.getLogger('src').setLevel(logging.INFO)
+
 logger.info("Imports completed")
 
 

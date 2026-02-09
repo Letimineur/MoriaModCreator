@@ -180,6 +180,43 @@ def extract_moria_from_github_zip(secrets_dir: Path) -> tuple[bool, str, int]:
         return (False, f"Extract error: {str(e)}", 0)
 
 
+def generate_secrets_manifest(secrets_dir: Path) -> tuple[int, Path]:
+    """Generate secrets manifest.def from all JSON files in jsondata.
+
+    Scans jsondata/ for all .json files, excluding StringTables directory,
+    and writes a manifest XML listing them.
+
+    Args:
+        secrets_dir: The Secrets Source directory
+
+    Returns:
+        Tuple of (file_count, manifest_path)
+    """
+    jsondata_dir = secrets_dir / "jsondata"
+    exclude_dirs = {'StringTables'}
+
+    json_files = sorted(
+        f for f in jsondata_dir.rglob('*.json')
+        if f.is_file() and not any(ex in f.parts for ex in exclude_dirs)
+    ) if jsondata_dir.exists() else []
+
+    lines = [
+        '<?xml version="1.0" encoding="utf-8"?>',
+        '<manifest>',
+        '  <!-- Secrets manifest: lists all JSON files to overlay during build Phase B -->',
+    ]
+    for f in json_files:
+        rel = str(f.relative_to(jsondata_dir)).replace('\\', '/')
+        lines.append(f'  <mod file="{rel}" />')
+    lines.append('</manifest>')
+    lines.append('')
+
+    manifest_path = secrets_dir / 'secrets manifest.def'
+    manifest_path.write_text('\n'.join(lines), encoding='utf-8')
+    logger.info("Generated secrets manifest with %d entries at %s", len(json_files), manifest_path)
+    return (len(json_files), manifest_path)
+
+
 def extract_other_zip_files(secrets_dir: Path) -> list[tuple[str, int]]:
     """Extract all ZIP files in Secrets Source directory except the GitHub one.
 
@@ -219,27 +256,53 @@ def extract_other_zip_files(secrets_dir: Path) -> list[tuple[str, int]]:
 
 
 
-def clear_all_directories_in_secrets_source() -> int:
-    """Clear all directories in Secrets Source, keeping only ZIP files.
+def _remove_dir_contents_keep_ini(directory: Path) -> int:
+    """Remove all files and subdirectories in a directory, preserving .ini files.
+
+    Args:
+        directory: The directory to clean
 
     Returns:
-        Number of directories removed
+        Number of items removed
+    """
+    removed = 0
+    for item in directory.iterdir():
+        if item.is_dir():
+            removed += _remove_dir_contents_keep_ini(item)
+            # Remove the directory only if it's now empty
+            if not any(item.iterdir()):
+                item.rmdir()
+                removed += 1
+        elif not item.suffix.lower() == '.ini':
+            item.unlink()
+            removed += 1
+    return removed
+
+
+def clear_all_directories_in_secrets_source() -> int:
+    """Clear all directories in Secrets Source, keeping only ZIP files and .ini files.
+
+    Returns:
+        Number of directories cleaned
     """
     secrets_dir = get_secrets_source_dir()
     if not secrets_dir.exists():
         return 0
 
-    removed_count = 0
+    cleaned_count = 0
     for item in secrets_dir.iterdir():
         if item.is_dir():
             try:
-                shutil.rmtree(item)
-                removed_count += 1
-                logger.info("Removed directory: %s", item.name)
+                _remove_dir_contents_keep_ini(item)
+                # Remove top-level dir only if empty
+                if not any(item.iterdir()):
+                    item.rmdir()
+                cleaned_count += 1
+                logger.info("Cleaned directory: %s", item.name)
             except OSError as e:
-                logger.error("Failed to remove %s: %s", item.name, e)
+                logger.error("Failed to clean %s: %s", item.name, e)
 
-    return removed_count
+    return cleaned_count
 
 
 
@@ -258,6 +321,11 @@ class SecretsImportDialog(ctk.CTkToplevel):
         # Center on parent
         self.transient(parent)
         self.grab_set()
+
+        # Set application icon
+        icon_path = Path(__file__).parent.parent.parent / "assets" / "icons" / "application icons" / "app_icon.ico"
+        if icon_path.exists():
+            self.after(10, lambda: self.iconbitmap(str(icon_path)))
 
         # Status tracking
         self.is_running = False
@@ -466,8 +534,21 @@ class SecretsImportDialog(ctk.CTkToplevel):
                     else:
                         self.update_queue.put(("detail", f"Failed to extract {zip_name}"))
 
+            self.update_queue.put(("progress", 0.9))
+
+            # Step 4: Generate secrets manifest
+            if self.should_cancel:
+                self.update_queue.put(("status", "Cancelled"))
+                self.update_queue.put(("done", None))
+                return
+
+            self.update_queue.put(("status", "Generating secrets manifest..."))
+            manifest_count, manifest_path = generate_secrets_manifest(secrets_dir)
+            self.update_queue.put(("detail", f"Manifest: {manifest_count} entries written"))
+
             self.update_queue.put(("progress", 1.0))
-            self.update_queue.put(("status", f"Complete! Extracted {file_count} files to jsondata/Moria"))
+            self.update_queue.put(("status",
+                f"Complete! Extracted {file_count} files, manifest has {manifest_count} entries"))
 
         except (urllib.error.URLError, zipfile.BadZipFile, OSError) as e:
             logger.exception("Import process error")
