@@ -206,11 +206,15 @@ class DefinitionManager:
 
                 # Get all changes
                 for change in mod_elem.findall('change'):
-                    result['changes'].append({
+                    change_data = {
                         'item': change.get('item', ''),
                         'property': change.get('property', ''),
                         'value': change.get('value', ''),
-                    })
+                    }
+                    add_prop = change.find('add_property')
+                    if add_prop is not None:
+                        change_data['add_property'] = True
+                    result['changes'].append(change_data)
 
             return result
 

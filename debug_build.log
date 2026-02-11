@@ -1,0 +1,944 @@
+[INFO] Imports completed
+[INFO] main() called
+[DEBUG] Setting color theme...
+[DEBUG] Config exists: True
+[DEBUG] Creating MainWindow...
+[DEBUG] MainWindow created
+[INFO] Starting mainloop...
+[INFO] Scanned JSON files: found 6929 values
+[INFO] Loaded 189 display names from 3 string table files
+[INFO] Found 984 names in DT_ConstructionRecipes.json
+[INFO] Found 814 names in DT_ConstructionRecipes.json
+[INFO] Found 1025 names in DT_Constructions.json
+[INFO] Found 854 names in DT_Constructions.json
+[INFO] New recipes: 170, New constructions: 171, Matching: 170
+[INFO] Updated autocomplete index with new values
+[INFO] Updated autocomplete index with new values
+[INFO] Updated autocomplete index with new values
+[INFO] Updated autocomplete index with new values
+[INFO] Updated autocomplete index with new values
+[INFO] Updated autocomplete index with new values
+[INFO] Updated autocomplete index with new values
+[INFO] Updated autocomplete index with new values
+[INFO] Updated autocomplete index with new values
+[INFO] Updated autocomplete index with new values
+[INFO] Updated autocomplete index with new values
+[INFO] Updated autocomplete index with new values
+[INFO] Updated autocomplete index with new values
+[INFO] Updated autocomplete index with new values
+[INFO] Updated autocomplete index with new values
+[INFO] Updated autocomplete index with new values
+[INFO] Found 431 names in DT_ItemRecipes.json
+[INFO] Found 390 names in DT_ItemRecipes.json
+[INFO] Found 167 names in DT_Weapons.json
+[INFO] Found 158 names in DT_Weapons.json
+[INFO] New item recipes: 41, New weapons: 9, Matching: 4
+[INFO] Found 431 names in DT_ItemRecipes.json
+[INFO] Found 390 names in DT_ItemRecipes.json
+[INFO] Found 160 names in DT_Armor.json
+[INFO] Found 156 names in DT_Armor.json
+[INFO] New item recipes: 41, New armor: 4, Matching: 3
+[INFO] Found 431 names in DT_ItemRecipes.json
+[INFO] Found 390 names in DT_ItemRecipes.json
+[INFO] Found 167 names in DT_Weapons.json
+[INFO] Found 158 names in DT_Weapons.json
+[INFO] New item recipes: 41, New weapons: 9, Matching: 4
+[INFO] Updated autocomplete index with new values
+[INFO] Updated autocomplete index with new values
+[INFO] Found 431 names in DT_ItemRecipes.json
+[INFO] Found 390 names in DT_ItemRecipes.json
+[INFO] Found 160 names in DT_Armor.json
+[INFO] Found 156 names in DT_Armor.json
+[INFO] New item recipes: 41, New armor: 4, Matching: 3
+[INFO] Found 431 names in DT_ItemRecipes.json
+[INFO] Found 390 names in DT_ItemRecipes.json
+[INFO] Found 43 names in DT_Tools.json
+[INFO] Found 41 names in DT_Tools.json
+[INFO] New item recipes: 41, New tools: 2, Matching: 1
+[INFO] Found 84 names in DT_Moria_Flora.json
+[INFO] Found 76 names in DT_Moria_Flora.json
+[INFO] New flora: 8
+[INFO] Found 412 names in DT_Loot.json
+[INFO] Found 370 names in DT_Loot.json
+[INFO] New loot: 42
+[INFO] Found 431 names in DT_ItemRecipes.json
+[INFO] Found 390 names in DT_ItemRecipes.json
+[INFO] Found 134 names in DT_Items.json
+[INFO] Found 131 names in DT_Items.json
+[INFO] New item recipes: 41, New items: 3, Matching: 3
+[INFO] Wrote Mereaks Secrets_MODIFY DT_ConstructionRecipes.def with 16 changes
+[INFO] Saved to change set: Mereaks Secrets_MODIFY DT_ConstructionRecipes.def
+[INFO] Wrote Mereaks Secrets_MODIFY DT_ItemRecipes.def with 4 changes
+[INFO] Saved to change set: Mereaks Secrets_MODIFY DT_ItemRecipes.def
+[INFO] Wrote Mereaks Secrets_MODIFY DT_Weapons.def with 6 changes
+[INFO] Saved to change set: Mereaks Secrets_MODIFY DT_Weapons.def
+[INFO] Wrote Mereaks Secrets_MODIFY DT_Tools.def with 3 changes
+[INFO] Saved to change set: Mereaks Secrets_MODIFY DT_Tools.def
+[INFO] Build progress: 0% - Cleaning previous build files...
+[INFO] Cleaned directory: C:\Users\johnb\AppData\Roaming\MoriaMODCreator\mymodfiles\Mereaks Favorite Mod\jsonfiles
+[INFO] Cleaned directory: C:\Users\johnb\AppData\Roaming\MoriaMODCreator\mymodfiles\Mereaks Favorite Mod\uasset
+[INFO] Cleaned directory: C:\Users\johnb\AppData\Roaming\MoriaMODCreator\mymodfiles\Mereaks Favorite Mod\finalmod
+[INFO] Build progress: 5% - Copying source files...
+[INFO] Build progress: 5% - Copying dt_armor.def...
+[INFO] Phase A: Copied Moria/Content/Tech/Data/Items/DT_Armor.json
+[INFO] Build progress: 6% - Copying dt_consumables.def...
+[INFO] Phase A: Copied Moria/Content/Tech/Data/Items/DT_Consumables.json
+[INFO] Build progress: 6% - Copying dt_items.def...
+[INFO] Phase A: Copied Moria/Content/Tech/Data/Items/DT_Items.json
+[INFO] Build progress: 7% - Copying dt_ores.def...
+[INFO] Phase A: Copied Moria/Content/Tech/Data/Items/DT_Ores.json
+[INFO] Build progress: 7% - Copying dt_tools.def...
+[INFO] Phase A: Copied Moria/Content/Tech/Data/Items/DT_Tools.json
+[INFO] Build progress: 8% - Copying dt_weapons.def...
+[INFO] Phase A: Copied Moria/Content/Tech/Data/Items/DT_Weapons.json
+[INFO] Build progress: 9% - Copying dt_tradegoods base trade value.def...
+[INFO] Phase A: Copied Moria/Content/Tech/Data/Economy/DT_TradeGoods.json
+[INFO] Build progress: 9% - Copying dt_recipebundles base trade value.def...
+[INFO] Phase A: Copied Moria/Content/Tech/Data/Economy/DT_RecipeBundles.json
+[INFO] Build progress: 10% - Copying dt_tradegoods stack size.def...
+[INFO] Phase A: Copied Moria/Content/Tech/Data/Economy/DT_TradeGoods.json
+[INFO] Build progress: 10% - Copying dt_storage remove allowed.def...
+[INFO] Phase A: Copied Moria/Content/Tech/Data/Items/DT_Storage.json
+[INFO] Build progress: 11% - Copying dt_storage remove restrictions.def...
+[INFO] Phase A: Copied Moria/Content/Tech/Data/Items/DT_Storage.json
+[INFO] Build progress: 11% - Copying mereaks secrets_modify dt_itemrecipes.def...
+[INFO] Phase A: Copied Moria/Content/Tech/Data/Items/DT_ItemRecipes.json
+[INFO] Build progress: 12% - Copying mereaks secrets_modify dt_tools.def...
+[INFO] Phase A: Copied Moria/Content/Tech/Data/Items/DT_Tools.json
+[INFO] Build progress: 13% - Copying mereaks secrets_modify dt_weapons.def...
+[INFO] Phase A: Copied Moria/Content/Tech/Data/Items/DT_Weapons.json
+[INFO] Build progress: 13% - Copying mereaks secrets_modify dt_constructionrecipes.def...
+[INFO] Phase A: Copied Moria/Content/Tech/Data/Building/DT_ConstructionRecipes.json
+[INFO] Build progress: 14% - Copying DT_Storage Remove Allowed.def...
+[INFO] Phase A: Copied Moria/Content/Tech/Data/Items/DT_Storage.json
+[INFO] Build progress: 14% - Copying DT_Storage Remove Restrictions.def...
+[INFO] Phase A: Copied Moria/Content/Tech/Data/Items/DT_Storage.json
+[INFO] Build progress: 15% - Overlaying secrets manifest...
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Character/AI/DT_Loot.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Items/Effects/TintEffects/IE_TintEffect_MoonStone.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/LevelDesign/Placeables/Interactables/CraftStations/BP_TintingStation.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/100BuildingsPack/BP_CraftingStation_TelcharForge.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/100BuildingsPack/BP_DM_Dwarf_Memorial_A_Breakable.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/100BuildingsPack/BP_ForgeUpgrade_GemCutter.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/100BuildingsPack/BP_OrcHunter_Rug_Warg_B.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/100BuildingsPack/BP_PlacedTorch_Wall.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/100BuildingsPack/BP_Suburbs_Wall_Thin_1x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/100BuildingsPack/BP_Suburbs_Wall_Thin_3x4m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/100BuildingsPack/GameplayEffects/GE_TobiHammer.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/AradrenPack/BP_City_Column_C_Base.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/AradrenPack/BP_City_Column_C_Capital.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/AradrenPack/BP_City_Column_C_Shaft.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/AradrenPack/BP_Suburbs_Wall_Thin_1x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/BearGuildPack/BearGuild_Gloves/BP_BearGuild_Gloves_T4.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/BearGuildPack/BearGuild_Gloves/BP_BearGuild_Gloves_T5.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/BearGuildPack/BearGuild_Gloves/BP_BearGuild_Gloves_T6.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/BearGuildPack/BearGuild_Shield/EQ_Wonderful_TBDSet_Shield.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/BearGuildPack/GameplayEffects/GE_BearGuild_AntiDragon.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/BearGuildPack/GameplayEffects/GE_BearGuild_AntiOrc.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/BearGuildPack/GameplayEffects/GE_BearGuild_Bludgeon.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/BearGuildPack/GameplayEffects/GE_BearGuild_Hunter.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/BearGuildPack/GameplayEffects/GE_BearGuild_PiercingBolt.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/BearGuildPack/GameplayEffects/GE_BearGuild_Thunder.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/BearGuildPack/GameplayEffects/GE_BearGuild_WatcherEye.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/BearGuildPack/GameplayEffects/GE_UnarmedAttackBoost_T4.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/BearGuildPack/GameplayEffects/GE_UnarmedAttackBoost_T5.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/BearGuildPack/GameplayEffects/GE_UnarmedAttackBoost_T6.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/BearGuildPack/GamplayEffects/GE_UnarmedAttackBoost_T3.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/BearGuildPack/GE_IronHills_APSet_Shield.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/BearGuildPack/GlovesTest/BP_RedMountains_MinerSet_GlovesArmor.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/CurvedPack/BP_Suburbs_Wall_Thin_1x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/CurvedPack/BP_Suburbs_Wall_Thin_1x3m_A_Player.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/CurvedPack/BP_Suburbs_Wall_Thin_3x4m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/CurvedPack/BP_Suburbs_Wall_Thin_3x4m_A_Player.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/CurvedPack/Granite_Stairs_A/BP_Suburbs_Stairs_Medium_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/CurvedPack/Granite_Stairs_A/BP_Suburbs_Stairs_Medium_B.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/CurvedPack/Granite_Stairs_B/BP_Suburbs_Stairs_Medium_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/CurvedPack/Granite_Stairs_B/BP_Suburbs_Stairs_Medium_B.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/CurvedPack/Granite_Walls/BP_Suburbs_Wall_Thin_1x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/CurvedPack/Granite_Walls/BP_Suburbs_Wall_Thin_3x4m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/CurvedPack/Hammer/EQ_Restoration_Hammer_Adamant.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/CurvedPack/Hammer/EQ_Restoration_Hammer_Adamant_Broken.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/CurvedPack/Hammer/GE_RestorationHammer_T5.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/CurvedPack/Wood_Thick_Walls/BP_Suburbs_Wall_Thin_1x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/CurvedPack/Wood_Thick_Walls/BP_Suburbs_Wall_Thin_3x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/CurvedPack/Wood_Thin_Walls/BP_Suburbs_Wall_Thin_1x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/CurvedPack/Wood_Thin_Walls/BP_Suburbs_Wall_Thin_3x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/FungalPack/BP_Flora_OilyPeatMossReceptacle_Plantable.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/FungalPack/BP_Flora_QuietMossReceptacle_Plantable.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/FungalPack/BP_Fungal_Foliage_A_Receptacle_Large.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/FungalPack/BP_Fungal_Foliage_A_Receptacle_Medium.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/FungalPack/BP_Fungal_Foliage_A_Receptacle_Small.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/FungalPack/BP_Fungal_Foliage_B_Receptacle_Large.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/FungalPack/BP_Fungal_Foliage_B_Receptacle_Medium.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/FungalPack/BP_Fungal_Foliage_B_Receptacle_Small.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/FungalPack/BP_FungalFoliageCutting_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/FungalPack/BP_FungalFoliageCutting_B.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/JuboPack/BP_Jubo_Banner_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/JuboPack/BP_Jubo_Banner_A_XL.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/JuboPack/BP_Jubo_Flag_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/JuboPack/BP_Jubo_GuardPoint.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/KingsWeaponsPack/CrimsonMetalIngot/BP_CrimsonIngot.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/KingsWeaponsPack/Dain_Battleaxe/EQ_Battleaxe_2h_t4.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/KingsWeaponsPack/Dain_Battleaxe/EQ_Battleaxe_2h_t4_Broken.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/KingsWeaponsPack/Dain_Warhammer/EQ_Hammer_2h_t2.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/KingsWeaponsPack/Dain_Warhammer/EQ_Hammer_2h_t2_Broken.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/KingsWeaponsPack/Thrain_Warhammer/EQ_Hammer_2h_t2.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/KingsWeaponsPack/Thrain_Warhammer/EQ_Hammer_2h_t2_Broken.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MereakAxePack/EQ_Battleaxe_Mereak.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MereakAxePack/EQ_Battleaxe_Mereak_Broken.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MereakPack/BP_BarrelContainer.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MereakPack/BP_DM_Dwarf_Memorial_A_Breakable.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MereakPack/BP_DM_Dwelling_Table_A_C.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MereakPack/BP_DM_Warehouse_Shelving_A_Breakable_Player.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MereakPack/BP_DM_Warehouse_Shelving_B_Breakable_Player.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MereakPack/BP_DM_Workshop_Table_C_Breakable.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MereakPack/BP_Suburbs_Ceiling_3x3m_Center_B.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MereakPack/BP_Suburbs_Ceiling_3x3m_Side_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MereakPack/BP_Suburbs_Column_Single_Arch_A_Breakable.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MereakPack/BP_Suburbs_Gate_A_Pillar_Base.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MereakPack/BP_Suburbs_Trim_Wood_1m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MereakPack/BP_Suburbs_Trim_Wood_3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MereakPack/BP_Suburbs_Wall_Thin_1x3m_L.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MereakPack/BP_Suburbs_Wall_Thin_3x15m_A_Breakable.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MereakPack/BP_Suburbs_Wall_Thin_3x15m_B_Breakable.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MereakPack/BP_Suburbs_Wall_Thin_Arch_B.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MithrilWallsPack/BP_Wall_Thin_3x4m_MithrilA.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MithrilWallsPack/BP_Wall_Thin_3x4m_MithrilB.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MithrilWallsPack/BP_Wall_Thin_3x4m_MithrilC.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MithrilWallsPack/BP_Wall_Thin_3x4m_MithrilD.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/MithrilWallsPack/BP_Wall_Thin_3x4m_MithrilE.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/NoobDelux_Banner/BP_NoobDelux_Banner_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/SilverWallsPack/BP_Wall_Thin_1x4m_SilverA.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/SilverWallsPack/BP_Wall_Thin_1x4m_SilverB.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/SilverWallsPack/BP_Wall_Thin_1x4m_SilverC.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/SilverWallsPack/BP_Wall_Thin_3x4m_SilverA.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/SilverWallsPack/BP_Wall_Thin_3x4m_SilverB.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/SilverWallsPack/BP_Wall_Thin_3x4m_SilverC.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/SilverWallsPack/BP_Wall_Thin_3x4m_SilverD.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/SilverWallsPack/BP_Wall_Thin_3x4m_SilverE.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/StreetLampPack/BP_DM_Lighting_StreetLamp_A_Player.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/StreetLampPack/BP_DM_Lighting_StreetLamp_B_Player.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/StreetLampPack/BP_DM_Lighting_StreetLamp_C_Player.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/StreetLampPack/BP_DM_Lighting_StreetLamp_D_Player.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/StreetLampPack/BP_DM_Lighting_StreetLamp_E_Player.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/StreetLampPack/BP_DM_Lighting_StreetLamp_F_Player.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/StreetLampPack/BP_DM_Lighting_StreetLamp_G_Player.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiDoorsPack/BP_Archway_3x4m_DoorClosed_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiDoorsPack/BP_Door_Test.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiDurinPack/Moss/BP_City_Column_C_Base_Moss.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiDurinPack/Moss/BP_City_Column_C_Capital_Moss.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiDurinPack/Moss/BP_City_Column_C_Shaft_Moss.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiDurinPack/RedRock/BP_City_Column_C_Base_RedRock.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiDurinPack/RedRock/BP_City_Column_C_Capital_RedRock.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiDurinPack/RedRock/BP_City_Column_C_Shaft_RedRock.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiDurinPack/Stone/BP_City_Column_C_Base.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiDurinPack/Stone/BP_City_Column_C_Capital.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiDurinPack/Stone/BP_City_Column_C_Shaft.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiDurinPack/WhiteMarble/BP_City_Column_C_Base_WhiteBarble.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiDurinPack/WhiteMarble/BP_City_Column_C_Capital_WhiteBarble.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiDurinPack/WhiteMarble/BP_City_Column_C_Shaft_WhiteBarble.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiDurinPack/WhiteMarble/BP_Suburbs_Inv_Stairs_CornerExt_A_WhiteMarble.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiFloorPack/FramedFloor_A/BP_Floor_Stone_3x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiFloorPack/InlaidFloor_A/BP_Floor_Stone_3x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiFloorPack/PatternedFloor_A/BP_Floor_Stone_3x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiFloorPack/PatternedFloor_B/BP_Floor_Stone_3x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiFloorPack/PatternedFloor_C/BP_Floor_Stone_3x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiFloorPack/TiledFloor_A/BP_Floor_Stone_3x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiFloorPack/TiledFloor_B/BP_Floor_Stone_3x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiFloorPack/TiledFloor_C/BP_Floor_Stone_3x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiPack/BP_BrewContainer.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiPack/BP_Floor_Wood_300x300x010_C_Breakable.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiPack/BP_Flora_BirdEgg_Receptacle.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiPack/BP_Flora_Feather_Receptacle.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiPack/BP_LargeBrazier.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiPack/BP_Suburbs_Ceiling_3x3m_Center_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiPack/BP_Suburbs_Ceiling_3x3m_Corner_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiPack/BP_Suburbs_Wall_Thin_Arch_F_Player.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/TobiPack/BP_Suburbs_Wall_Thin_Arch_G_Player.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/VasePack/BP_VasePack_Vase_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/VasePack/BP_VasePack_Vase_B.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/VasePack/BP_VasePack_Vase_C.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/VasePack/BP_VasePack_Vase_D.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/VasePack/BP_VasePack_Vase_E.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/VasePack/BP_VasePack_Vase_F.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/VasePack/BP_VasePack_Vase_G.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/VasePack/BP_VasePack_Vase_H.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/ZetaPack/BP_Archway_3x4m_DoorClosed_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/ZetaPack/BP_Column_1x2m_A_Base.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/ZetaPack/BP_Column_1x2m_A_Capital.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/ZetaPack/BP_Column_1x2m_A_Shaft.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/ZetaPack/BP_Floor_Stone_3x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/ZetaPack/BP_Floor_Stone_Gold_3x3m.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/ZetaPack/BP_Suburbs_Stairs_Medium_B.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/ZetaPack/BP_Suburbs_Wall_Thin_1x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/ZetaPack/BP_Suburbs_Wall_Thin_1x3m_G.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/ZetaPack/BP_Suburbs_Wall_Thin_3x3m_A.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Mods/ZetaPack/BP_Suburbs_Wall_Thin_Window_Small_B.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Tech/Data/Building/DT_ConstructionRecipes.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Tech/Data/Building/DT_Constructions.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Tech/Data/Economy/DT_OfferDecks.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Tech/Data/GameWorld/DT_Moria_Flora.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Tech/Data/Items/DT_Armor.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Tech/Data/Items/DT_ItemRecipes.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Tech/Data/Items/DT_Items.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Tech/Data/Items/DT_Tools.json
+[INFO] Phase B: Overlaid secrets file: Moria/Content/Tech/Data/Items/DT_Weapons.json
+[INFO] Phase B: Copied 169 files from secrets manifest
+[INFO] Build progress: 20% - Applying definition changes...
+[INFO] Build progress: 20% - Applying changes from dt_armor.def...
+[INFO] Phase C: dt_armor.def -> Moria/Content/Tech/Data/Items/DT_Armor.json (0 deletes, 15 changes)
+[INFO]   CHANGE: item=NPC_MinerOutfit_Hat prop=MaxStackSize value=100
+[INFO]   CHANGE: item=NPC_ArtisanOutfit_Hat prop=MaxStackSize value=100
+[INFO]   CHANGE: item=NPC_BlacksmithOutfit_Hat prop=MaxStackSize value=100
+[INFO]   CHANGE: item=NPC_BrewerOutfit_Hat prop=MaxStackSize value=100
+[INFO]   CHANGE: item=NPC_BuilderOutfit_Hat prop=MaxStackSize value=100
+[INFO]   CHANGE: item=NPC_CookOutfit_Hat prop=MaxStackSize value=100
+[INFO]   CHANGE: item=Amazing_Set_HelmetArmor prop=MaxStackSize value=100
+[INFO]   CHANGE: item=NPC_TavernOutfit_Torso prop=MaxStackSize value=100
+[INFO]   CHANGE: item=NPC_ShopkeeperOutfit_Torso prop=MaxStackSize value=100
+[INFO]   CHANGE: item=NPC_CookOutfit_Torso prop=MaxStackSize value=100
+[INFO]   CHANGE: item=NPC_RestorerOutfit_Hat prop=MaxStackSize value=100
+[INFO]   CHANGE: item=NPC_TraderOutfit_Torso prop=MaxStackSize value=100
+[INFO]   CHANGE: item=NPC_MetalworkerOutfit_Hat prop=MaxStackSize value=100
+[INFO]   CHANGE: item=NPC_BlacksmithOutfit_Torso prop=MaxStackSize value=100
+[INFO]   CHANGE: item=NPC_RestorerOutfit_Torso prop=MaxStackSize value=100
+[INFO] Phase C: Applied changes from dt_armor.def
+[INFO] Build progress: 21% - Applying changes from dt_consumables.def...
+[INFO] Phase C: dt_consumables.def -> Moria/Content/Tech/Data/Items/DT_Consumables.json (0 deletes, 56 changes)
+[INFO]   CHANGE: item=TeaFlower prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=HoneyCakes_Ration prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=DriedMeat_Ration prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=HarshFlower prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=StaminaBoost_Consumable prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=IceCabbage prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=CaveHoney prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=RareMushroom prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Cheese_Ration prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Chives prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=AntiPoison_Consumable prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Cookies_Ration prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Cram_Ration prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Cranberries prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=DeepHash_Meal prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=DeepMushroom prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Dough prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=DriedFruit_Ration prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Eggs prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Elanor prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=ElvenSecretIngredient prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Fennel prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=OrcTemper_Consumable prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Grabapple prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Journeybread_Ration prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=DwarfOat prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Lembas_Ration prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=ShadowCraftingConsumable prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Meat prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=MilledOats prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Mint prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=MountainPotato prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Mushroom prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Niphredil prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=OatMilk prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Parsnips prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Pasties_Ration prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=PoisonMushroom prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=AttackBoost_Consumable prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Pumpkin prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=FreeDodge_Consumable prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=AntiShadowPoison_Consumable prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Saffron prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=DriedFish_Ration prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=SaltedMeat_Ration prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=OliveOil prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Sunion prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Sweetroot prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=FreeSprint_Consumable prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=HealingFlower prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Thyme prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=DefenseBoost_Consumable prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=WhaleTalow prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=WhiteBeans prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=HolidayPack_Cookies_Ration prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=HolidayPack_HolidayMeal_Meal prop=MaxStackSize value=9999
+[INFO] Phase C: Applied changes from dt_consumables.def
+[INFO] Build progress: 22% - Applying changes from dt_items.def...
+[INFO] Phase C: dt_items.def -> Moria/Content/Tech/Data/Items/DT_Items.json (0 deletes, 84 changes)
+[INFO]   CHANGE: item=Spices prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=OilyPeatMoss prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Bone prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=BronzeIngot prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=KnowledgeScrollA prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=KnowledgeBookA prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Chitin prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=ChiveSeed prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=ClothScraps prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Coin prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=CopperIngot prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Remedy_Ingredient prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=DrakeBones prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=PurifiedDarkIngot prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=AltarFigurineDurin prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=ElanorSeeds prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Silk prop=MaxStackSize value=50
+[INFO]   CHANGE: item=ElvenTreeCutting prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=QualityWood prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=EntPack_EntMoss prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Feathers prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=FellBeastHead prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=FennelSeed prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=FineCloth prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=FineLeather prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=FireclayBrick prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=AltarFigurnieDwalinBalin prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=AltarFigurineBelgost prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=AltarFigurineGimol prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=GoldIngot prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=GundabadScrap prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Memorial_Item prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Hide prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=HideScraps prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=HollyTreeCutting prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=IronIngot prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Ironwood prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=IthildinIngot prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=KhazadSteelIngot prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Leather prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Scrap prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=MintSeed prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=PolishedSilver prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=MithrilIngot prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=AltarFigurineNarvi prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=NaturalFiber prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Biofuel prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=NeedleandThread prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=NiphredilSeeds prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=NogrodSteelIngot prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Wool prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=BoltsOfCloth prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=AltarFigurnie prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Key_Orc prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=PumpkinSeeds prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=StriderPage_WesternMines prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=StriderPage_Grottos prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=StriderPage_Bridge prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=StriderPage_Dwarrowdelf prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=StriderPage_Crossroads prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=RopeVines prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=OrcSkull prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Scales prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=SeaWax prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=GunMetalIngot prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Shell prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=SilverIngot prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Droppings prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Fertilizer prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=SpiderSilk prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=StarAlloyIngot prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=SteelIngot prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=SterlingIngot prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=QuietMoss prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=SweetrootSeeds prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=AltarFigurnieTelchar prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=ThymeSeed prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=TrollHIde prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=FungalTreeCutting prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=AncientWood prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=WargPelt prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=WhiteBeanSeed prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Wood prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=OldRing prop=MaxStackSize value=9999
+[INFO] Phase C: Applied changes from dt_items.def
+[INFO] Build progress: 24% - Applying changes from dt_ores.def...
+[INFO] Phase C: dt_ores.def -> Moria/Content/Tech/Data/Items/DT_Ores.json (0 deletes, 40 changes)
+[INFO]   CHANGE: item=Adamant prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Amber prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Amethyst prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=AncientBones prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Anorin prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=ConsumableCraftingOre prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Azide prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=BlackDiamond prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Citrine prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Coal prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Marble prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Copper prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Diamond prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Emerald prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=EternalIce prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Garnet prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Gold prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Granite prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Iolite prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Iron prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Jade prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Mithril prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Onyx prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=RedhornPumice prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Quartz prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=RedBeryl prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=RedSandstone prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Resin prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Ruby prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Salt prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Sapphire prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Silver prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=StarMetal prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Stone prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=SunStone prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Tin prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Topaz prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=MoonStone prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Obsidian prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=LapisLazuli prop=MaxStackSize value=9999
+[INFO] Phase C: Applied changes from dt_ores.def
+[INFO] Build progress: 25% - Applying changes from dt_tools.def...
+[INFO] Phase C: dt_tools.def -> Moria/Content/Tech/Data/Items/DT_Tools.json (0 deletes, 8 changes)
+[INFO]   CHANGE: item=Loupe_1h_NPCTool prop=MaxStackSize value=100
+[INFO]   CHANGE: item=BlacksmithHammer_1h_NPCTool prop=MaxStackSize value=100
+[INFO]   CHANGE: item=Wanderer_RingTestSequence_Hammer prop=MaxStackSize value=100
+[INFO]   CHANGE: item=MashPaddle_2h_NPCTool prop=MaxStackSize value=100
+[INFO]   CHANGE: item=Chisel_1h_NPCTool prop=MaxStackSize value=100
+[INFO]   CHANGE: item=FryingPan_1h_NPCTool prop=MaxStackSize value=100
+[INFO]   CHANGE: item=Tong_1h_NPCTool prop=MaxStackSize value=100
+[INFO]   CHANGE: item=Basket_1h_NPCTool prop=MaxStackSize value=100
+[INFO] Phase C: Applied changes from dt_tools.def
+[INFO] Build progress: 26% - Applying changes from dt_weapons.def...
+[INFO] Phase C: dt_weapons.def -> Moria/Content/Tech/Data/Items/DT_Weapons.json (0 deletes, 6 changes)
+[INFO]   CHANGE: item=Arrow_Basic_t1 prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Arrow_Elven_t2 prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=CrossbowBolt_Basic_t1 prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=Arrow_Khazad_t3 prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=CrossbowBolt_Khazad_t2 prop=MaxStackSize value=9999
+[INFO]   CHANGE: item=CrossbowBolt_Nogrod_t3 prop=MaxStackSize value=9999
+[INFO] Phase C: Applied changes from dt_weapons.def
+[INFO] Build progress: 27% - Applying changes from dt_tradegoods base trade value.def...
+[INFO] Phase C: dt_tradegoods base trade value.def -> Moria/Content/Tech/Data/Economy/DT_TradeGoods.json (0 deletes, 42 changes)
+[INFO]   CHANGE: item=TG_BrassButtons prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_BronzeCoins prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_ArmyAle prop=BaseTradeValue value=1000
+[INFO]   CHANGE: item=TG_WoodworkingTools prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_CeremonialArmorLot prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_CeremonialWeapons prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_CopperBeltBuckles prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_CopperCoins prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_CrossbowLot prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_CrystalLamps prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_OrnateMetalwork prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_DiamondJewelry prop=BaseTradeValue value=200
+[INFO]   CHANGE: item=TG_BuildingHouseingTools prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_DwarvenHistories prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_MechanicalToys prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_EngravedAkhfurChests prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_MirroredGlass prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_GemSetFiligreeInlay prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_GoldSilverFilligree prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_GoldJewelry prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_HealingSupplies prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_HorsemansIronwork prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_CarvedMuralSections prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_IronPotsAndPans prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_MithrilJewelry prop=BaseTradeValue value=200
+[INFO]   CHANGE: item=TG_DecorativeMithrilWork prop=BaseTradeValue value=200
+[INFO]   CHANGE: item=TG_BronzeShipFittings prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_ArnorBrew prop=BaseTradeValue value=1000
+[INFO]   CHANGE: item=TG_OrnateTablewear prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_EliteArmor prop=BaseTradeValue value=200
+[INFO]   CHANGE: item=TG_EliteWeapons prop=BaseTradeValue value=200
+[INFO]   CHANGE: item=TG_RohanAle prop=BaseTradeValue value=1000
+[INFO]   CHANGE: item=TG_RunicHearthstones prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_TrebuchetParts prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_SilverCoin prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_StarmetalCoins prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_DwarvenArrowheads prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_PrecisionMeasurementTools prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_TinCoins prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_TravelingGear prop=BaseTradeValue value=100
+[INFO]   CHANGE: item=TG_ShireAle prop=BaseTradeValue value=1000
+[INFO]   CHANGE: item=TG_SteelWeaponsLot prop=BaseTradeValue value=100
+[INFO] Phase C: Applied changes from dt_tradegoods base trade value.def
+[INFO] Build progress: 28% - Applying changes from dt_recipebundles base trade value.def...
+[INFO] Phase C: dt_recipebundles base trade value.def -> Moria/Content/Tech/Data/Economy/DT_RecipeBundles.json (0 deletes, 31 changes)
+[INFO]   CHANGE: item=NPCOutfit_Miner_Hat prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=DurinsTowerBuildingSet prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=NPCOutfit_Artisan_Hat prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=NPCOutfit_Blacksmith_Hat prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=NPCOutfit_Brewer_Hat prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=NPCOutfit_Builder_Hat prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=WhiteMarbleBuildingSet prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=NPCOutfit_Cook_Hat prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=ShireDecoration prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=RedMountainDecoration prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=Orcbane_Set_ArmorTorso prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=BlueMountainDecoration prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=NPCOutfit_Grocer_Hat prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=NPCOutfit_Guard_Hat prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=RivendellDecoration prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=NPCOutfit_Tavern_Torso prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=NPCOutfit_Shopkeeper_Torso prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=NPCOutfit_Cook_Torso prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=NPCOutfit_Restorer_Hat prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=MeatHat prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=NPCOutfit_Trader_Torso prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=NPCOutfit_Metalworker_Hat prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=Starlight_Weapon prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=RedRockBuildingSet prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=NPCOutfit_Gatherer_Hat prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=NPCOutfit_Researcher_Hat prop=BaseTradeValue value=200.0
+[INFO]   CHANGE: item=SeaWax prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=NPCOutfit_Blacksmith_Torso prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=NPCOutfit_Restorer_Torso prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=NPCOutfit_Tinker_Hat prop=BaseTradeValue value=10
+[INFO]   CHANGE: item=GondorDecoration prop=BaseTradeValue value=10
+[INFO] Phase C: Applied changes from dt_recipebundles base trade value.def
+[INFO] Build progress: 29% - Applying changes from dt_tradegoods stack size.def...
+[INFO] Phase C: dt_tradegoods stack size.def -> Moria/Content/Tech/Data/Economy/DT_TradeGoods.json (0 deletes, 42 changes)
+[INFO]   CHANGE: item=TG_BrassButtons prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_BronzeCoins prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_ArmyAle prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_WoodworkingTools prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_CeremonialArmorLot prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_CeremonialWeapons prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_CopperBeltBuckles prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_CopperCoins prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_CrossbowLot prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_CrystalLamps prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_OrnateMetalwork prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_DiamondJewelry prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_BuildingHouseingTools prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_DwarvenHistories prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_MechanicalToys prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_EngravedAkhfurChests prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_MirroredGlass prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_GemSetFiligreeInlay prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_GoldSilverFilligree prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_GoldJewelry prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_HealingSupplies prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_HorsemansIronwork prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_CarvedMuralSections prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_IronPotsAndPans prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_MithrilJewelry prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_DecorativeMithrilWork prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_BronzeShipFittings prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_ArnorBrew prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_OrnateTablewear prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_EliteArmor prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_EliteWeapons prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_RohanAle prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_RunicHearthstones prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_TrebuchetParts prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_SilverCoin prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_StarmetalCoins prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_DwarvenArrowheads prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_PrecisionMeasurementTools prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_TinCoins prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_TravelingGear prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_ShireAle prop=MaxStackSize value=100
+[INFO]   CHANGE: item=TG_SteelWeaponsLot prop=MaxStackSize value=100
+[INFO] Phase C: Applied changes from dt_tradegoods stack size.def
+[INFO] Build progress: 31% - Applying changes from dt_storage remove allowed.def...
+[INFO] Phase C: dt_storage remove allowed.def -> Moria/Content/Tech/Data/Items/DT_Storage.json (0 deletes, 1 changes)
+[INFO]   CHANGE: item=NONE prop=AllowedItems value=NULL
+[INFO] Phase C: Applied changes from dt_storage remove allowed.def
+[INFO] Build progress: 32% - Applying changes from dt_storage remove restrictions.def...
+[INFO] Phase C: dt_storage remove restrictions.def -> Moria/Content/Tech/Data/Items/DT_Storage.json (21 deletes, 0 changes)
+[INFO]   DELETE: item=AdventurersPack prop=ExcludeItems value=Item.EpicPack
+[INFO] Removed tag 'Item.EpicPack' from ExcludeItems in 'AdventurersPack'
+[INFO]   DELETE: item=AdventurersPack prop=ExcludeItems value=Item.EpicItem
+[INFO] Removed tag 'Item.EpicItem' from ExcludeItems in 'AdventurersPack'
+[INFO]   DELETE: item=AdventurersPack_Krampus prop=ExcludeItems value=Item.EpicPack
+[INFO] Removed tag 'Item.EpicPack' from ExcludeItems in 'AdventurersPack_Krampus'
+[INFO]   DELETE: item=AdventurersPack_Krampus prop=ExcludeItems value=Item.EpicItem
+[INFO] Removed tag 'Item.EpicItem' from ExcludeItems in 'AdventurersPack_Krampus'
+[INFO]   DELETE: item=AdventurersPack_Large prop=ExcludeItems value=Item.EpicPack
+[INFO] Removed tag 'Item.EpicPack' from ExcludeItems in 'AdventurersPack_Large'
+[INFO]   DELETE: item=AdventurersPack_Large prop=ExcludeItems value=Item.EpicItem
+[INFO] Removed tag 'Item.EpicItem' from ExcludeItems in 'AdventurersPack_Large'
+[INFO]   DELETE: item=AdventurersPack_Small prop=ExcludeItems value=Item.EpicPack
+[INFO] Removed tag 'Item.EpicPack' from ExcludeItems in 'AdventurersPack_Small'
+[INFO]   DELETE: item=AdventurersPack_Small prop=ExcludeItems value=Item.EpicItem
+[INFO] Removed tag 'Item.EpicItem' from ExcludeItems in 'AdventurersPack_Small'
+[INFO]   DELETE: item=Chest prop=ExcludeItems value=Item.EpicPack
+[INFO] Removed tag 'Item.EpicPack' from ExcludeItems in 'Chest'
+[INFO]   DELETE: item=Chest prop=ExcludeItems value=Item.EpicItem
+[INFO] Removed tag 'Item.EpicItem' from ExcludeItems in 'Chest'
+[INFO]   DELETE: item=Chest_Advanced prop=ExcludeItems value=Item.EpicItem
+[INFO] Removed tag 'Item.EpicItem' from ExcludeItems in 'Chest_Advanced'
+[INFO]   DELETE: item=Chest_Advanced prop=ExcludeItems value=Item.EpicPack
+[INFO] Removed tag 'Item.EpicPack' from ExcludeItems in 'Chest_Advanced'
+[INFO]   DELETE: item=Chest_DwarvenPuzzle prop=ExcludeItems value=Item.EpicItem
+[INFO] Removed tag 'Item.EpicItem' from ExcludeItems in 'Chest_DwarvenPuzzle'
+[INFO]   DELETE: item=Chest_DwarvenPuzzle prop=ExcludeItems value=Item.EpicPack
+[INFO] Removed tag 'Item.EpicPack' from ExcludeItems in 'Chest_DwarvenPuzzle'
+[INFO]   DELETE: item=Chest_Exploration prop=ExcludeItems value=Item.EpicPack
+[INFO] Removed tag 'Item.EpicPack' from ExcludeItems in 'Chest_Exploration'
+[INFO]   DELETE: item=Chest_Exploration prop=ExcludeItems value=Item.EpicItem
+[INFO] Removed tag 'Item.EpicItem' from ExcludeItems in 'Chest_Exploration'
+[INFO]   DELETE: item=Chest_Ornate prop=ExcludeItems value=Item.EpicItem
+[INFO] Removed tag 'Item.EpicItem' from ExcludeItems in 'Chest_Ornate'
+[INFO]   DELETE: item=Chest_Ornate prop=ExcludeItems value=Item.EpicPack
+[INFO] Removed tag 'Item.EpicPack' from ExcludeItems in 'Chest_Ornate'
+[INFO]   DELETE: item=Dwarf.BodyInventory prop=ExcludeItems value=Item.EpicPack
+[INFO] Removed tag 'Item.EpicPack' from ExcludeItems in 'Dwarf.BodyInventory'
+[INFO]   DELETE: item=Dwarf.BodyInventory prop=ExcludeItems value=Item.EpicItem
+[INFO] Removed tag 'Item.EpicItem' from ExcludeItems in 'Dwarf.BodyInventory'
+[INFO]   DELETE: item=Dwarf.Inventory prop=ExcludeItems value=Item.EpicPack
+[INFO] Removed tag 'Item.EpicPack' from ExcludeItems in 'Dwarf.Inventory'
+[INFO] Phase C: Applied changes from dt_storage remove restrictions.def
+[INFO] Build progress: 33% - Applying changes from mereaks secrets_modify dt_itemrecipes.def...
+[INFO] Phase C: mereaks secrets_modify dt_itemrecipes.def -> Moria/Content/Tech/Data/Items/DT_ItemRecipes.json (0 deletes, 4 changes)
+[INFO]   CHANGE: item=Dain_Battleaxe prop=DefaultRequiredMaterials[0].MaterialHandle.RowName value=Item.MithrilIngot
+[INFO]   CHANGE: item=Thrain_Warhammer prop=DefaultRequiredMaterials[0].MaterialHandle.RowName value=Item.MithrilIngot
+[INFO]   CHANGE: item=Restoration_Hammer_Tobi prop=DefaultUnlocks.UnlockType value=EMorRecipeUnlockType::Manual
+[INFO]   CHANGE: item=CrimsonIngot prop=DefaultUnlocks.UnlockType value=EMorRecipeUnlockType::Manual
+[INFO] Phase C: Applied changes from mereaks secrets_modify dt_itemrecipes.def
+[INFO] Build progress: 34% - Applying changes from mereaks secrets_modify dt_tools.def...
+[INFO] Phase C: mereaks secrets_modify dt_tools.def -> Moria/Content/Tech/Data/Items/DT_Tools.json (0 deletes, 3 changes)
+[INFO]   CHANGE: item=Restoration_Hammer_Tobi prop=DurabilityDecayWhileEquipped value=0.0
+[INFO]   CHANGE: item=Restoration_Hammer_Tobi prop=StaminaCost value=0.0
+[INFO]   CHANGE: item=Restoration_Hammer_Tobi prop=InitialRepairCost[0].MaterialHandle.RowName value=Item.MithrilIngot
+[INFO] NameMap: added 1 new entries: ['Item.MithrilIngot']
+[INFO] Phase C: Applied changes from mereaks secrets_modify dt_tools.def
+[INFO] Build progress: 35% - Applying changes from mereaks secrets_modify dt_weapons.def...
+[INFO] Phase C: mereaks secrets_modify dt_weapons.def -> Moria/Content/Tech/Data/Items/DT_Weapons.json (0 deletes, 6 changes)
+[INFO]   CHANGE: item=Dain_Battleaxe prop=StaminaCost value=0.0
+[INFO]   CHANGE: item=Dain_Battleaxe prop=InitialRepairCost[0].MaterialHandle.RowName value=Item.MithrilIngot
+[INFO]   CHANGE: item=Dain_Battleaxe prop=InitialRepairCost[0].Count value=4
+[INFO]   CHANGE: item=Thrain_Warhammer prop=StaminaCost value=0.0
+[INFO]   CHANGE: item=Thrain_Warhammer prop=InitialRepairCost[0].MaterialHandle.RowName value=Item.MithrilIngot
+[INFO]   CHANGE: item=Thrain_Warhammer prop=InitialRepairCost[0].Count value=4
+[INFO] NameMap: added 1 new entries: ['Item.MithrilIngot']
+[INFO] Phase C: Applied changes from mereaks secrets_modify dt_weapons.def
+[INFO] Build progress: 36% - Applying changes from mereaks secrets_modify dt_constructionrecipes.def...
+[INFO] Phase C: mereaks secrets_modify dt_constructionrecipes.def -> Moria/Content/Tech/Data/Building/DT_ConstructionRecipes.json (0 deletes, 16 changes)
+[INFO]   CHANGE: item=100BuildingsPack_GraniteBarrier45_A prop=DefaultUnlocks.UnlockRequiredItems.UnlockRequiredItems.RowName value=Tool.Restoration_Hammer_Starmetal
+[INFO]   CHANGE: item=100BuildingsPack_GraniteWall45_A prop=DefaultUnlocks.UnlockRequiredItems.UnlockRequiredItems.RowName value=Tool.Restoration_Hammer_Starmetal
+[INFO]   CHANGE: item=100BuildingsPack_GuardStatue_A prop=DefaultUnlocks.UnlockRequiredItems.UnlockRequiredItems.RowName value=Tool.Restoration_Hammer_Starmetal
+[INFO]   CHANGE: item=100BuildingsPack_HangingIronLantern_A prop=DefaultUnlocks.UnlockRequiredItems.UnlockRequiredItems.RowName value=Tool.Restoration_Hammer_Starmetal
+[INFO]   CHANGE: item=100BuildingsPack_TelcharForge_A prop=DefaultUnlocks.UnlockRequiredItems.UnlockRequiredItems.RowName value=Tool.Restoration_Hammer_Starmetal
+[INFO]   CHANGE: item=CurvedPack_CurvedBarrier_A prop=DefaultUnlocks.UnlockRequiredItems.UnlockRequiredItems.RowName value=Tool.Restoration_Hammer_Starmetal
+[INFO]   CHANGE: item=CurvedPack_CurvedBarrier_B prop=DefaultUnlocks.UnlockRequiredItems.UnlockRequiredItems.RowName value=Tool.Restoration_Hammer_Starmetal
+[INFO]   CHANGE: item=CurvedPack_CurvedBarrier_C prop=DefaultUnlocks.UnlockRequiredItems.UnlockRequiredItems.RowName value=Tool.Restoration_Hammer_Starmetal
+[INFO]   CHANGE: item=CurvedPack_CurvedStairs_A prop=DefaultUnlocks.UnlockRequiredItems.UnlockRequiredItems.RowName value=Tool.Restoration_Hammer_Starmetal
+[INFO]   CHANGE: item=CurvedPack_CurvedStairs_B prop=DefaultUnlocks.UnlockRequiredItems.UnlockRequiredItems.RowName value=Tool.Restoration_Hammer_Starmetal
+[INFO]   CHANGE: item=CurvedPack_CurvedWall_A prop=DefaultUnlocks.UnlockRequiredItems.UnlockRequiredItems.RowName value=Tool.Restoration_Hammer_Starmetal
+[INFO]   CHANGE: item=CurvedPack_CurvedWall_B prop=DefaultUnlocks.UnlockRequiredItems.UnlockRequiredItems.RowName value=Tool.Restoration_Hammer_Starmetal
+[INFO]   CHANGE: item=CurvedPack_CurvedWall_C prop=DefaultUnlocks.UnlockRequiredItems.UnlockRequiredItems.RowName value=Tool.Restoration_Hammer_Starmetal
+[INFO]   CHANGE: item=TobiDurinPack_ColumnBase_A prop=DefaultUnlocks.UnlockRequiredItems.UnlockRequiredItems.RowName value=Tool.Restoration_Hammer_Starmetal
+[INFO]   CHANGE: item=TobiDurinPack_ColumnCapital_A prop=DefaultUnlocks.UnlockRequiredItems.UnlockRequiredItems.RowName value=Tool.Restoration_Hammer_Starmetal
+[INFO]   CHANGE: item=TobiDurinPack_ColumnShaft_A prop=DefaultUnlocks.UnlockRequiredItems.UnlockRequiredItems.RowName value=Tool.Restoration_Hammer_Starmetal
+[INFO] Phase C: Applied changes from mereaks secrets_modify dt_constructionrecipes.def
+[INFO] Build progress: 38% - Applying changes from DT_Storage Remove Allowed.def...
+[INFO] Phase C: DT_Storage Remove Allowed.def -> Moria/Content/Tech/Data/Items/DT_Storage.json (0 deletes, 1 changes)
+[INFO]   CHANGE: item=NONE prop=AllowedItems value=NULL
+[INFO] Phase C: Applied changes from DT_Storage Remove Allowed.def
+[INFO] Build progress: 39% - Applying changes from DT_Storage Remove Restrictions.def...
+[INFO] Phase C: DT_Storage Remove Restrictions.def -> Moria/Content/Tech/Data/Items/DT_Storage.json (21 deletes, 0 changes)
+[INFO]   DELETE: item=AdventurersPack prop=ExcludeItems value=Item.EpicPack
+[INFO]   DELETE: item=AdventurersPack prop=ExcludeItems value=Item.EpicItem
+[INFO]   DELETE: item=AdventurersPack_Krampus prop=ExcludeItems value=Item.EpicPack
+[INFO]   DELETE: item=AdventurersPack_Krampus prop=ExcludeItems value=Item.EpicItem
+[INFO]   DELETE: item=AdventurersPack_Large prop=ExcludeItems value=Item.EpicPack
+[INFO]   DELETE: item=AdventurersPack_Large prop=ExcludeItems value=Item.EpicItem
+[INFO]   DELETE: item=AdventurersPack_Small prop=ExcludeItems value=Item.EpicPack
+[INFO]   DELETE: item=AdventurersPack_Small prop=ExcludeItems value=Item.EpicItem
+[INFO]   DELETE: item=Chest prop=ExcludeItems value=Item.EpicPack
+[INFO]   DELETE: item=Chest prop=ExcludeItems value=Item.EpicItem
+[INFO]   DELETE: item=Chest_Advanced prop=ExcludeItems value=Item.EpicItem
+[INFO]   DELETE: item=Chest_Advanced prop=ExcludeItems value=Item.EpicPack
+[INFO]   DELETE: item=Chest_DwarvenPuzzle prop=ExcludeItems value=Item.EpicItem
+[INFO]   DELETE: item=Chest_DwarvenPuzzle prop=ExcludeItems value=Item.EpicPack
+[INFO]   DELETE: item=Chest_Exploration prop=ExcludeItems value=Item.EpicPack
+[INFO]   DELETE: item=Chest_Exploration prop=ExcludeItems value=Item.EpicItem
+[INFO]   DELETE: item=Chest_Ornate prop=ExcludeItems value=Item.EpicItem
+[INFO]   DELETE: item=Chest_Ornate prop=ExcludeItems value=Item.EpicPack
+[INFO]   DELETE: item=Dwarf.BodyInventory prop=ExcludeItems value=Item.EpicPack
+[INFO]   DELETE: item=Dwarf.BodyInventory prop=ExcludeItems value=Item.EpicItem
+[INFO]   DELETE: item=Dwarf.Inventory prop=ExcludeItems value=Item.EpicPack
+[INFO] Phase C: Applied changes from DT_Storage Remove Restrictions.def
+[INFO] Build progress: 40% - Converting to uasset format...
+[INFO] Build progress: 40% - Converting DT_ConstructionRecipes.json...
+[INFO] Build progress: 40% - Converting DT_Constructions.json...
+[INFO] Build progress: 40% - Converting DT_OfferDecks.json...
+[INFO] Build progress: 41% - Converting DT_RecipeBundles.json...
+[INFO] Build progress: 41% - Converting DT_TradeGoods.json...
+[INFO] Build progress: 41% - Converting DT_Moria_Flora.json...
+[INFO] Build progress: 41% - Converting DT_Armor.json...
+[INFO] Build progress: 41% - Converting DT_Consumables.json...
+[INFO] Build progress: 41% - Converting DT_ItemRecipes.json...
+[INFO] Build progress: 42% - Converting DT_Items.json...
+[INFO] Build progress: 42% - Converting DT_Ores.json...
+[INFO] Build progress: 42% - Converting DT_Storage.json...
+[INFO] Build progress: 42% - Converting DT_Tools.json...
+[INFO] Build progress: 42% - Converting DT_Weapons.json...
+[INFO] Build progress: 42% - Converting BP_CraftingStation_TelcharForge.json...
+[INFO] Build progress: 43% - Converting BP_DM_Dwarf_Memorial_A_Breakable.json...
+[INFO] Build progress: 43% - Converting BP_ForgeUpgrade_GemCutter.json...
+[INFO] Build progress: 43% - Converting BP_OrcHunter_Rug_Warg_B.json...
+[INFO] Build progress: 43% - Converting BP_PlacedTorch_Wall.json...
+[INFO] Build progress: 43% - Converting BP_Suburbs_Wall_Thin_1x3m_A.json...
+[INFO] Build progress: 43% - Converting BP_Suburbs_Wall_Thin_3x4m_A.json...
+[INFO] Build progress: 44% - Converting BP_City_Column_C_Base.json...
+[INFO] Build progress: 44% - Converting BP_City_Column_C_Capital.json...
+[INFO] Build progress: 44% - Converting BP_City_Column_C_Shaft.json...
+[INFO] Build progress: 44% - Converting BP_Suburbs_Wall_Thin_1x3m_A.json...
+[INFO] Build progress: 44% - Converting GE_IronHills_APSet_Shield.json...
+[INFO] Build progress: 44% - Converting BP_Suburbs_Wall_Thin_1x3m_A.json...
+[INFO] Build progress: 45% - Converting BP_Suburbs_Wall_Thin_1x3m_A_Player.json...
+[INFO] Build progress: 45% - Converting BP_Suburbs_Wall_Thin_3x4m_A.json...
+[INFO] Build progress: 45% - Converting BP_Suburbs_Wall_Thin_3x4m_A_Player.json...
+[INFO] Build progress: 45% - Converting BP_Flora_OilyPeatMossReceptacle_Plantable.json...
+[INFO] Build progress: 45% - Converting BP_Flora_QuietMossReceptacle_Plantable.json...
+[INFO] Build progress: 46% - Converting BP_FungalFoliageCutting_A.json...
+[INFO] Build progress: 46% - Converting BP_FungalFoliageCutting_B.json...
+[INFO] Build progress: 46% - Converting BP_Fungal_Foliage_A_Receptacle_Large.json...
+[INFO] Build progress: 46% - Converting BP_Fungal_Foliage_A_Receptacle_Medium.json...
+[INFO] Build progress: 46% - Converting BP_Fungal_Foliage_A_Receptacle_Small.json...
+[INFO] Build progress: 46% - Converting BP_Fungal_Foliage_B_Receptacle_Large.json...
+[INFO] Build progress: 47% - Converting BP_Fungal_Foliage_B_Receptacle_Medium.json...
+[INFO] Build progress: 47% - Converting BP_Fungal_Foliage_B_Receptacle_Small.json...
+[INFO] Build progress: 47% - Converting BP_Jubo_Banner_A.json...
+[INFO] Build progress: 47% - Converting BP_Jubo_Banner_A_XL.json...
+[INFO] Build progress: 47% - Converting BP_Jubo_Flag_A.json...
+[INFO] Build progress: 47% - Converting BP_Jubo_GuardPoint.json...
+[INFO] Build progress: 48% - Converting EQ_Battleaxe_Mereak.json...
+[INFO] Build progress: 48% - Converting EQ_Battleaxe_Mereak_Broken.json...
+[INFO] Build progress: 48% - Converting BP_BarrelContainer.json...
+[INFO] Build progress: 48% - Converting BP_DM_Dwarf_Memorial_A_Breakable.json...
+[INFO] Build progress: 48% - Converting BP_DM_Dwelling_Table_A_C.json...
+[INFO] Build progress: 48% - Converting BP_DM_Warehouse_Shelving_A_Breakable_Player.json...
+[INFO] Build progress: 49% - Converting BP_DM_Warehouse_Shelving_B_Breakable_Player.json...
+[INFO] Build progress: 49% - Converting BP_DM_Workshop_Table_C_Breakable.json...
+[INFO] Build progress: 49% - Converting BP_Suburbs_Ceiling_3x3m_Center_B.json...
+[INFO] Build progress: 49% - Converting BP_Suburbs_Ceiling_3x3m_Side_A.json...
+[INFO] Build progress: 49% - Converting BP_Suburbs_Column_Single_Arch_A_Breakable.json...
+[INFO] Build progress: 49% - Converting BP_Suburbs_Gate_A_Pillar_Base.json...
+[INFO] Build progress: 50% - Converting BP_Suburbs_Trim_Wood_1m_A.json...
+[INFO] Build progress: 50% - Converting BP_Suburbs_Trim_Wood_3m_A.json...
+[INFO] Build progress: 50% - Converting BP_Suburbs_Wall_Thin_1x3m_L.json...
+[INFO] Build progress: 50% - Converting BP_Suburbs_Wall_Thin_3x15m_A_Breakable.json...
+[INFO] Build progress: 50% - Converting BP_Suburbs_Wall_Thin_3x15m_B_Breakable.json...
+[INFO] Build progress: 51% - Converting BP_Suburbs_Wall_Thin_Arch_B.json...
+[INFO] Build progress: 51% - Converting BP_Wall_Thin_3x4m_MithrilA.json...
+[INFO] Build progress: 51% - Converting BP_Wall_Thin_3x4m_MithrilB.json...
+[INFO] Build progress: 51% - Converting BP_Wall_Thin_3x4m_MithrilC.json...
+[INFO] Build progress: 51% - Converting BP_Wall_Thin_3x4m_MithrilD.json...
+[INFO] Build progress: 51% - Converting BP_Wall_Thin_3x4m_MithrilE.json...
+[INFO] Build progress: 52% - Converting BP_NoobDelux_Banner_A.json...
+[INFO] Build progress: 52% - Converting BP_Wall_Thin_1x4m_SilverA.json...
+[INFO] Build progress: 52% - Converting BP_Wall_Thin_1x4m_SilverB.json...
+[INFO] Build progress: 52% - Converting BP_Wall_Thin_1x4m_SilverC.json...
+[INFO] Build progress: 52% - Converting BP_Wall_Thin_3x4m_SilverA.json...
+[INFO] Build progress: 52% - Converting BP_Wall_Thin_3x4m_SilverB.json...
+[INFO] Build progress: 53% - Converting BP_Wall_Thin_3x4m_SilverC.json...
+[INFO] Build progress: 53% - Converting BP_Wall_Thin_3x4m_SilverD.json...
+[INFO] Build progress: 53% - Converting BP_Wall_Thin_3x4m_SilverE.json...
+[INFO] Build progress: 53% - Converting BP_DM_Lighting_StreetLamp_A_Player.json...
+[INFO] Build progress: 53% - Converting BP_DM_Lighting_StreetLamp_B_Player.json...
+[INFO] Build progress: 53% - Converting BP_DM_Lighting_StreetLamp_C_Player.json...
+[INFO] Build progress: 54% - Converting BP_DM_Lighting_StreetLamp_D_Player.json...
+[INFO] Build progress: 54% - Converting BP_DM_Lighting_StreetLamp_E_Player.json...
+[INFO] Build progress: 54% - Converting BP_DM_Lighting_StreetLamp_F_Player.json...
+[INFO] Build progress: 54% - Converting BP_DM_Lighting_StreetLamp_G_Player.json...
+[INFO] Build progress: 54% - Converting BP_Archway_3x4m_DoorClosed_A.json...
+[INFO] Build progress: 54% - Converting BP_Door_Test.json...
+[INFO] Build progress: 55% - Converting BP_BrewContainer.json...
+[INFO] Build progress: 55% - Converting BP_Floor_Wood_300x300x010_C_Breakable.json...
+[INFO] Build progress: 55% - Converting BP_Flora_BirdEgg_Receptacle.json...
+[INFO] Build progress: 55% - Converting BP_Flora_Feather_Receptacle.json...
+[INFO] Build progress: 55% - Converting BP_LargeBrazier.json...
+[INFO] Build progress: 56% - Converting BP_Suburbs_Ceiling_3x3m_Center_A.json...
+[INFO] Build progress: 56% - Converting BP_Suburbs_Ceiling_3x3m_Corner_A.json...
+[INFO] Build progress: 56% - Converting BP_Suburbs_Wall_Thin_Arch_F_Player.json...
+[INFO] Build progress: 56% - Converting BP_Suburbs_Wall_Thin_Arch_G_Player.json...
+[INFO] Build progress: 56% - Converting BP_VasePack_Vase_A.json...
+[INFO] Build progress: 56% - Converting BP_VasePack_Vase_B.json...
+[INFO] Build progress: 57% - Converting BP_VasePack_Vase_C.json...
+[INFO] Build progress: 57% - Converting BP_VasePack_Vase_D.json...
+[INFO] Build progress: 57% - Converting BP_VasePack_Vase_E.json...
+[INFO] Build progress: 57% - Converting BP_VasePack_Vase_F.json...
+[INFO] Build progress: 57% - Converting BP_VasePack_Vase_G.json...
+[INFO] Build progress: 57% - Converting BP_VasePack_Vase_H.json...
+[INFO] Build progress: 58% - Converting BP_Archway_3x4m_DoorClosed_A.json...
+[INFO] Build progress: 58% - Converting BP_Column_1x2m_A_Base.json...
+[INFO] Build progress: 58% - Converting BP_Column_1x2m_A_Capital.json...
+[INFO] Build progress: 58% - Converting BP_Column_1x2m_A_Shaft.json...
+[INFO] Build progress: 58% - Converting BP_Floor_Stone_3x3m_A.json...
+[INFO] Build progress: 58% - Converting BP_Floor_Stone_Gold_3x3m.json...
+[INFO] Build progress: 59% - Converting BP_Suburbs_Stairs_Medium_B.json...
+[INFO] Build progress: 59% - Converting BP_Suburbs_Wall_Thin_1x3m_A.json...
+[INFO] Build progress: 59% - Converting BP_Suburbs_Wall_Thin_1x3m_G.json...
+[INFO] Build progress: 59% - Converting BP_Suburbs_Wall_Thin_3x3m_A.json...
+[INFO] Build progress: 59% - Converting BP_Suburbs_Wall_Thin_Window_Small_B.json...
+[INFO] Build progress: 59% - Converting BP_Floor_Stone_3x3m_A.json...
+[INFO] Build progress: 60% - Converting BP_Floor_Stone_3x3m_A.json...
+[INFO] Build progress: 60% - Converting BP_Floor_Stone_3x3m_A.json...
+[INFO] Build progress: 60% - Converting BP_Floor_Stone_3x3m_A.json...
+[INFO] Build progress: 60% - Converting BP_Floor_Stone_3x3m_A.json...
+[INFO] Build progress: 60% - Converting BP_Floor_Stone_3x3m_A.json...
+[INFO] Build progress: 61% - Converting BP_Floor_Stone_3x3m_A.json...
+[INFO] Build progress: 61% - Converting BP_Floor_Stone_3x3m_A.json...
+[INFO] Build progress: 61% - Converting BP_City_Column_C_Base_Moss.json...
+[INFO] Build progress: 61% - Converting BP_City_Column_C_Capital_Moss.json...
+[INFO] Build progress: 61% - Converting BP_City_Column_C_Shaft_Moss.json...
+[INFO] Build progress: 61% - Converting BP_City_Column_C_Base_RedRock.json...
+[INFO] Build progress: 62% - Converting BP_City_Column_C_Capital_RedRock.json...
+[INFO] Build progress: 62% - Converting BP_City_Column_C_Shaft_RedRock.json...
+[INFO] Build progress: 62% - Converting BP_City_Column_C_Base.json...
+[INFO] Build progress: 62% - Converting BP_City_Column_C_Capital.json...
+[INFO] Build progress: 62% - Converting BP_City_Column_C_Shaft.json...
+[INFO] Build progress: 62% - Converting BP_City_Column_C_Base_WhiteBarble.json...
+[INFO] Build progress: 63% - Converting BP_City_Column_C_Capital_WhiteBarble.json...
+[INFO] Build progress: 63% - Converting BP_City_Column_C_Shaft_WhiteBarble.json...
+[INFO] Build progress: 63% - Converting BP_Suburbs_Inv_Stairs_CornerExt_A_WhiteMarble.json...
+[INFO] Build progress: 63% - Converting BP_CrimsonIngot.json...
+[INFO] Build progress: 63% - Converting EQ_Battleaxe_2h_t4.json...
+[INFO] Build progress: 63% - Converting EQ_Battleaxe_2h_t4_Broken.json...
+[INFO] Build progress: 64% - Converting EQ_Hammer_2h_t2.json...
+[INFO] Build progress: 64% - Converting EQ_Hammer_2h_t2_Broken.json...
+[INFO] Build progress: 64% - Converting EQ_Hammer_2h_t2.json...
+[INFO] Build progress: 64% - Converting EQ_Hammer_2h_t2_Broken.json...
+[INFO] Build progress: 64% - Converting BP_Suburbs_Stairs_Medium_A.json...
+[INFO] Build progress: 64% - Converting BP_Suburbs_Stairs_Medium_B.json...
+[INFO] Build progress: 65% - Converting BP_Suburbs_Stairs_Medium_A.json...
+[INFO] Build progress: 65% - Converting BP_Suburbs_Stairs_Medium_B.json...
+[INFO] Build progress: 65% - Converting BP_Suburbs_Wall_Thin_1x3m_A.json...
+[INFO] Build progress: 65% - Converting BP_Suburbs_Wall_Thin_3x4m_A.json...
+[INFO] Build progress: 65% - Converting EQ_Restoration_Hammer_Adamant.json...
+[INFO] Build progress: 66% - Converting EQ_Restoration_Hammer_Adamant_Broken.json...
+[INFO] Build progress: 66% - Converting GE_RestorationHammer_T5.json...
+[INFO] Build progress: 66% - Converting BP_Suburbs_Wall_Thin_1x3m_A.json...
+[INFO] Build progress: 66% - Converting BP_Suburbs_Wall_Thin_3x3m_A.json...
+[INFO] Build progress: 66% - Converting BP_Suburbs_Wall_Thin_1x3m_A.json...
+[INFO] Build progress: 66% - Converting BP_Suburbs_Wall_Thin_3x3m_A.json...
+[INFO] Build progress: 67% - Converting BP_BearGuild_Gloves_T4.json...
+[INFO] Build progress: 67% - Converting BP_BearGuild_Gloves_T5.json...
+[INFO] Build progress: 67% - Converting BP_BearGuild_Gloves_T6.json...
+[INFO] Build progress: 67% - Converting EQ_Wonderful_TBDSet_Shield.json...
+[INFO] Build progress: 67% - Converting GE_BearGuild_AntiDragon.json...
+[INFO] Build progress: 67% - Converting GE_BearGuild_AntiOrc.json...
+[INFO] Build progress: 68% - Converting GE_BearGuild_Bludgeon.json...
+[INFO] Build progress: 68% - Converting GE_BearGuild_Hunter.json...
+[INFO] Build progress: 68% - Converting GE_BearGuild_PiercingBolt.json...
+[INFO] Build progress: 68% - Converting GE_BearGuild_Thunder.json...
+[INFO] Build progress: 68% - Converting GE_BearGuild_WatcherEye.json...
+[INFO] Build progress: 68% - Converting GE_UnarmedAttackBoost_T4.json...
+[INFO] Build progress: 69% - Converting GE_UnarmedAttackBoost_T5.json...
+[INFO] Build progress: 69% - Converting GE_UnarmedAttackBoost_T6.json...
+[INFO] Build progress: 69% - Converting GE_UnarmedAttackBoost_T3.json...
+[INFO] Build progress: 69% - Converting BP_RedMountains_MinerSet_GlovesArmor.json...
+[INFO] Build progress: 69% - Converting GE_TobiHammer.json...
+[INFO] Build progress: 69% - Converting BP_TintingStation.json...
+[INFO] Build progress: 70% - Converting IE_TintEffect_MoonStone.json...
+[INFO] Build progress: 70% - Converting DT_Loot.json...
+[INFO] Build progress: 70% - Packaging mod files...
+[INFO] Build progress: 85% - Copying secrets pak files...
+[INFO] Copied secrets file: C:\Users\johnb\AppData\Roaming\MoriaMODCreator\Secrets Source\Secrets of Khazad-dum_NoFatStacks\Secrets of Khazad-dum\Secrets of Khazad-dum\SecretsOfKhazadDum_Localization_P.pak -> C:\Users\johnb\AppData\Roaming\MoriaMODCreator\mymodfiles\Mereaks Favorite Mod\finalmod\Mereaks Favorite Mod_P\SecretsOfKhazadDum_Localization_P.pak
+[INFO] Copied secrets file: C:\Users\johnb\AppData\Roaming\MoriaMODCreator\Secrets Source\Secrets of Khazad-dum_NoFatStacks\Secrets of Khazad-dum\Tobi Mods Addons\TobiModsAddons_P.utoc -> C:\Users\johnb\AppData\Roaming\MoriaMODCreator\mymodfiles\Mereaks Favorite Mod\finalmod\Mereaks Favorite Mod_P\TobiModsAddons_P.utoc
+[INFO] Copied secrets file: C:\Users\johnb\AppData\Roaming\MoriaMODCreator\Secrets Source\Secrets of Khazad-dum_NoFatStacks\Secrets of Khazad-dum\Tobi Mods Addons\TobiModsAddons_P.ucas -> C:\Users\johnb\AppData\Roaming\MoriaMODCreator\mymodfiles\Mereaks Favorite Mod\finalmod\Mereaks Favorite Mod_P\TobiModsAddons_P.ucas
+[INFO] Copied secrets file: C:\Users\johnb\AppData\Roaming\MoriaMODCreator\Secrets Source\Secrets of Khazad-dum_NoFatStacks\Secrets of Khazad-dum\Tobi Mods Addons\TobiModsAddons_P.pak -> C:\Users\johnb\AppData\Roaming\MoriaMODCreator\mymodfiles\Mereaks Favorite Mod\finalmod\Mereaks Favorite Mod_P\TobiModsAddons_P.pak
+[INFO] Copied 4 of 4 secrets pak files
+[INFO] Build progress: 90% - Creating zip file...
+[INFO] Created mod zip: C:\Users\johnb\Downloads\Mereaks Favorite Mod.zip
+[INFO] Build progress: 100% - Build complete!
+[INFO] mainloop ended

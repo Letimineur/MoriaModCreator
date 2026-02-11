@@ -83,6 +83,100 @@ def apply_add_row(json_data: dict, row_name: str, row_data_text: str, overwrite:
     return False
 
 
+def add_property_to_json(
+    json_data: dict,
+    item_name: str,
+    property_json_text: str,
+    change_property_path: str = '',
+):
+    """Add a property to a JSON structure if it doesn't already exist.
+
+    Uses the parent change's property_path to navigate to the correct
+    nested location. For example, if change path is "PrimaryDrop.DropRate",
+    the property is added inside PrimaryDrop's Value array.
+
+    Args:
+        json_data: The full JSON data structure.
+        item_name: The row/export name to find.
+        property_json_text: JSON string defining the property to add.
+        change_property_path: The parent change's property path.
+    """
+    try:
+        new_property = json.loads(property_json_text)
+    except json.JSONDecodeError as e:
+        logger.error(
+            "Failed to parse add_property JSON for %s: %s",
+            item_name, e,
+        )
+        return
+
+    prop_name = new_property.get('Name', '')
+    if not prop_name:
+        return
+
+    if 'Exports' not in json_data:
+        return
+
+    # Determine parent path from the change's property path
+    parent_parts = []
+    if '.' in change_property_path:
+        parent_parts = change_property_path.split('.')[:-1]
+
+    # Find the target data array for this item
+    target_data = _find_item_data(json_data, item_name)
+    if target_data is None:
+        return
+
+    # Navigate parent path to the correct container
+    for part in parent_parts:
+        found = False
+        if isinstance(target_data, list):
+            for item in target_data:
+                if isinstance(item, dict) and item.get('Name') == part:
+                    target_data = item.get('Value', [])
+                    found = True
+                    break
+        if not found:
+            return
+
+    # Add property if not already present
+    if isinstance(target_data, list):
+        exists = any(
+            p.get('Name') == prop_name
+            for p in target_data if isinstance(p, dict)
+        )
+        if not exists:
+            target_data.append(new_property)
+            logger.info("Added property %s.%s", item_name, prop_name)
+
+
+def _find_item_data(json_data: dict, item_name: str):
+    """Find the Data/Value array for a given item name."""
+    name_variations = [
+        f"Default__{item_name}_C",
+        f"Default__{item_name}",
+        item_name,
+        f"{item_name}_C",
+    ]
+    for name_variant in name_variations:
+        for export in json_data['Exports']:
+            if export.get('ObjectName', '') == name_variant:
+                data = export.get('Data', [])
+                if isinstance(data, list):
+                    return data
+
+    # Try DataTable format
+    for export in json_data['Exports']:
+        if 'Table' in export and 'Data' in export['Table']:
+            for row in export['Table']['Data']:
+                if row.get('Name') == item_name:
+                    value_array = row.get('Value', [])
+                    if isinstance(value_array, list):
+                        return value_array
+
+    return None
+
+
 def apply_json_change(json_data: dict, item_name: str, property_path: str, new_value: str):
     """Apply a simple change to a DataTable row."""
     if 'Exports' not in json_data:
@@ -119,9 +213,14 @@ def set_property_in_value_array(value_array: list, property_path: str, new_value
             return
 
 
-def apply_def_to_json(def_file: Path, json_file: Path, output_file: Path = None, overwrite: bool = True):
+def apply_def_to_json(
+    def_file: Path,
+    json_file: Path,
+    output_file: Path = None,
+    overwrite: bool = True,
+):
     """Apply a .def file's modifications to a JSON file.
-    
+
     Args:
         def_file: Path to the .def XML file
         json_file: Path to the baseline JSON file
@@ -173,25 +272,48 @@ def apply_def_to_json(def_file: Path, json_file: Path, output_file: Path = None,
             item_name = change_elem.get('item', '')
             property_path = change_elem.get('property', '')
             new_value = change_elem.get('value', '')
+
+            # Handle <add_property> child - ensure property exists
+            add_prop = change_elem.find('add_property')
+            if add_prop is not None and add_prop.text:
+                prop_item = add_prop.get('item', item_name)
+                add_property_to_json(
+                    json_data, prop_item,
+                    add_prop.text.strip(), property_path,
+                )
+
             if item_name and property_path:
-                apply_json_change(json_data, item_name, property_path, new_value)
+                apply_json_change(
+                    json_data, item_name, property_path, new_value
+                )
 
     # Save the modified JSON
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(json_data, f, indent=2, ensure_ascii=False)
-    
+
     logger.info("Saved modified JSON to: %s", output_file)
 
 
 def main():
+    """CLI entry point for applying .def modifications to JSON."""
     parser = argparse.ArgumentParser(
         description='Apply .def file modifications to baseline JSON files.'
     )
-    parser.add_argument('def_file', type=Path, help='Path to the .def XML file')
-    parser.add_argument('json_file', type=Path, help='Path to the baseline JSON file')
-    parser.add_argument('--output', '-o', type=Path, help='Output file path (defaults to overwriting input)')
-    parser.add_argument('--no-overwrite', action='store_true', help='Skip existing rows instead of overwriting')
-    
+    parser.add_argument(
+        'def_file', type=Path, help='Path to the .def XML file'
+    )
+    parser.add_argument(
+        'json_file', type=Path, help='Path to the baseline JSON file'
+    )
+    parser.add_argument(
+        '--output', '-o', type=Path,
+        help='Output file path (defaults to overwriting input)',
+    )
+    parser.add_argument(
+        '--no-overwrite', action='store_true',
+        help='Skip existing rows instead of overwriting',
+    )
+
     args = parser.parse_args()
 
     if not args.def_file.exists():

@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import customtkinter as ctk
+from PIL import Image, ImageDraw
 
 from src.config import (
     get_appdata_dir, get_buildings_dir, get_constructions_dir,
@@ -1836,6 +1837,11 @@ class BuildingsView(ctk.CTkFrame):
         self.select_all_var = None
         self.select_all_checkbox = None
 
+        # Cached eye visibility icons (created on first use)
+        self._eye_visible_icon = None
+        self._eye_hidden_icon = None
+        self._eye_mixed_icon = None
+
         # Search filter for construction definitions
         self.def_search_var = None
 
@@ -1982,6 +1988,11 @@ class BuildingsView(ctk.CTkFrame):
         # Right pane: Building form
         self._create_building_form_pane()
 
+        # Set initial eye button icons (after both panes are created)
+        visible_icon, _, _ = self._get_eye_icons()
+        self.bulk_eye_btn.configure(image=visible_icon)
+        self.header_eye_btn.configure(image=visible_icon)
+
     def _create_building_list_pane(self):
         """
         Create the left pane with .def file list and action buttons.
@@ -1996,29 +2007,9 @@ class BuildingsView(ctk.CTkFrame):
         list_frame = ctk.CTkFrame(self)
         list_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 10))
 
-        # Top row: "Include Secret Constructions" checkbox + Refresh button
-        top_row = ctk.CTkFrame(list_frame, fg_color="transparent")
-        top_row.pack(fill="x", padx=10, pady=(10, 2))
-
-        self.include_secrets_var = ctk.BooleanVar(value=False)
-        self.include_secrets_cb = ctk.CTkCheckBox(
-            top_row, text="Include Secret Constructions",
-            variable=self.include_secrets_var,
-            font=ctk.CTkFont(size=12),
-        )
-        self.include_secrets_cb.pack(side="left")
-
-        refresh_btn = ctk.CTkButton(
-            top_row, text="↻", width=28, height=28,
-            font=ctk.CTkFont(size=16),
-            fg_color="transparent", hover_color=("gray75", "gray25"),
-            command=self._on_refresh_cache_click
-        )
-        refresh_btn.pack(side="right")
-
         # Button rows for category filters
         btn_container = ctk.CTkFrame(list_frame, fg_color="transparent")
-        btn_container.pack(fill="x", padx=10, pady=(5, 5))
+        btn_container.pack(fill="x", padx=10, pady=(10, 5))
 
         # Row 1: Buildings, Weapons, Armor
         btn_row1 = ctk.CTkFrame(btn_container, fg_color="transparent")
@@ -2093,6 +2084,33 @@ class BuildingsView(ctk.CTkFrame):
             command=self._load_secrets_items
         )
         self.items_btn.grid(row=0, column=1, sticky="ew", padx=2)
+
+        # "Include Secret Constructions" checkbox + Refresh button
+        top_row = ctk.CTkFrame(list_frame, fg_color="transparent")
+        top_row.pack(fill="x", padx=10, pady=(5, 2))
+
+        self.include_secrets_var = ctk.BooleanVar(value=False)
+        self.include_secrets_cb = ctk.CTkCheckBox(
+            top_row, text="Include Secret Constructions",
+            variable=self.include_secrets_var,
+            font=ctk.CTkFont(size=12),
+        )
+        self.include_secrets_cb.pack(side="left")
+
+        refresh_btn = ctk.CTkButton(
+            top_row, text="↻", width=28, height=28,
+            font=ctk.CTkFont(size=16),
+            fg_color="transparent", hover_color=("gray75", "gray25"),
+            command=self._on_refresh_cache_click
+        )
+        refresh_btn.pack(side="right")
+
+        self.bulk_eye_btn = ctk.CTkLabel(
+            top_row, text="", width=28, cursor="hand2",
+        )
+        self.bulk_eye_btn.pack(side="right", padx=(0, 2))
+        self.bulk_eye_btn.bind("<Button-1>", lambda e: self._on_bulk_eye_toggle())
+        self._bulk_eye_visible = True
 
         # Scrollable file list
         self.building_list = ctk.CTkScrollableFrame(list_frame, fg_color="transparent")
@@ -2199,13 +2217,26 @@ class BuildingsView(ctk.CTkFrame):
         self.form_header.grid(row=0, column=0, sticky="ew", padx=10, pady=(10, 0))
         self.form_header.grid_remove()  # Hidden initially
 
+        header_top_row = ctk.CTkFrame(self.form_header, fg_color="transparent")
+        header_top_row.pack(fill="x", padx=10, pady=(10, 2))
+
         self.header_title = ctk.CTkLabel(
-            self.form_header,
+            header_top_row,
             text="",
             font=ctk.CTkFont(size=18, weight="bold"),
             anchor="w"
         )
-        self.header_title.pack(fill="x", padx=10, pady=(10, 2))
+        self.header_title.pack(side="left", fill="x", expand=True)
+
+        self.header_eye_btn = ctk.CTkLabel(
+            header_top_row,
+            text="",
+            width=28,
+            cursor="hand2",
+        )
+        self.header_eye_btn.pack(side="right", padx=(5, 0))
+        self.header_eye_btn.bind("<Button-1>", lambda e: self._on_header_eye_click())
+        self._header_eye_visible = True
 
         self.header_author = ctk.CTkLabel(
             self.form_header,
@@ -2397,7 +2428,7 @@ class BuildingsView(ctk.CTkFrame):
             return
 
         # If in secrets mode, use the secrets filter
-        if self.view_mode in ('buildings', 'weapons', 'armor'):
+        if self.view_mode in ('buildings', 'weapons', 'armor', 'tools', 'flora', 'loot', 'items'):
             self._filter_secrets_list()
             return
 
@@ -2496,6 +2527,10 @@ class BuildingsView(ctk.CTkFrame):
         loader = loader_map.get(self.view_mode)
         if loader:
             loader()
+
+        # Reload the currently selected item in the right pane
+        if self.current_secrets_recipe_name:
+            self._load_secrets_recipe(self.current_secrets_recipe_name)
 
     def _on_secrets_checkbox_toggle(self, _recipe_name: str):
         """Handle secrets item checkbox toggle - saves to INI in real-time."""
@@ -3190,6 +3225,9 @@ class BuildingsView(ctk.CTkFrame):
                 self.form_content, text="No data found for this item.",
                 text_color="gray"
             ).pack(anchor="center", pady=40)
+
+        # Update header eye button to reflect current item's visibility
+        self._update_header_eye_icon()
 
     # ----- Per-type form renderers -----
 
@@ -4294,6 +4332,8 @@ class BuildingsView(ctk.CTkFrame):
                 self._set_status(f"Saved changes to {', '.join(saved_files)}")
                 # Mark the checkbox for this item in the left pane
                 self._mark_item_checked_on_save()
+                # Update eye icons to reflect new visibility state
+                self._update_current_item_eye_icon()
                 # Add any new field values to the autocomplete index
                 self._update_autocomplete_index()
             else:
@@ -4311,6 +4351,324 @@ class BuildingsView(ctk.CTkFrame):
             if check_var:
                 check_var.set(True)
                 self._save_checked_states_to_ini()
+
+    def _get_current_item_visibility(self) -> bool:
+        """Determine visibility of the current item from form_vars."""
+        mode = self.view_mode or 'buildings'
+        if mode in ('buildings', 'weapons', 'armor', 'tools', 'items'):
+            default_ut = self.form_vars.get('DefaultUnlocks_UnlockType')
+            sandbox_ut = self.form_vars.get('SandboxUnlocks_UnlockType')
+            if default_ut and sandbox_ut:
+                both_manual = (default_ut.get() == 'EMorRecipeUnlockType::Manual'
+                               and sandbox_ut.get() == 'EMorRecipeUnlockType::Manual')
+                return not both_manual
+        elif mode in ('flora', 'loot'):
+            enabled_var = self.form_vars.get('Def_EnabledState')
+            if enabled_var:
+                return enabled_var.get() != 'ERowEnabledState::Disabled'
+        return True
+
+    def _update_header_eye_icon(self):
+        """Update the right-pane header eye button based on current item visibility."""
+        is_visible = self._get_current_item_visibility()
+        self._header_eye_visible = is_visible
+        visible_icon, hidden_icon, _ = self._get_eye_icons()
+        icon = visible_icon if is_visible else hidden_icon
+        self.header_eye_btn.configure(image=icon)
+
+    def _update_current_item_eye_icon(self):
+        """Update the eye icon for the current item in the left pane list."""
+        name = self.current_secrets_recipe_name
+        if not name or name not in self.building_list_items:
+            return
+
+        is_visible = self._get_current_item_visibility()
+        visible_icon, hidden_icon, _ = self._get_eye_icons()
+        icon = visible_icon if is_visible else hidden_icon
+
+        row_frame = self.building_list_items[name][0]
+        for child in row_frame.winfo_children():
+            if isinstance(child, ctk.CTkLabel) and child.cget("text") == "":
+                # This is the eye icon label (empty text, has image)
+                try:
+                    child.configure(image=icon)
+                except (ValueError, AttributeError):
+                    pass
+                break
+
+        self._update_header_eye_icon()
+        self._update_bulk_eye_state()
+
+    def _update_bulk_eye_state(self):
+        """Update the bulk eye button icon based on visibility of all listed items.
+
+        Shows green/open if all visible, red/closed if all hidden,
+        blue/closed if mixed. Also updates the internal toggle state.
+        """
+        if not self.building_list_items:
+            return
+
+        item_names = list(self.building_list_items.keys())
+        visibility_map = self._compute_visibility_map(item_names)
+
+        visible_count = sum(1 for v in visibility_map.values() if v)
+        total = len(visibility_map)
+
+        visible_icon, hidden_icon, mixed_icon = self._get_eye_icons()
+
+        if visible_count == total:
+            # All visible
+            self.bulk_eye_btn.configure(image=visible_icon)
+            self._bulk_eye_visible = True
+        elif visible_count == 0:
+            # All hidden
+            self.bulk_eye_btn.configure(image=hidden_icon)
+            self._bulk_eye_visible = False
+        else:
+            # Mixed state - show blue closed eye
+            self.bulk_eye_btn.configure(image=mixed_icon)
+            self._bulk_eye_visible = True  # Next toggle will hide all
+
+    def _on_header_eye_click(self):
+        """Toggle visibility of the current item via the header eye button."""
+        if not self.current_def_data:
+            return
+
+        # Toggle: if currently visible, make hidden; if hidden, make visible
+        is_visible = self._header_eye_visible
+        mode = self.view_mode or 'buildings'
+
+        if is_visible:
+            # Make hidden
+            if mode in ('buildings', 'weapons', 'armor', 'tools', 'items'):
+                default_var = self.form_vars.get('DefaultUnlocks_UnlockType')
+                sandbox_var = self.form_vars.get('SandboxUnlocks_UnlockType')
+                if default_var:
+                    default_var.set('EMorRecipeUnlockType::Manual')
+                if sandbox_var:
+                    sandbox_var.set('EMorRecipeUnlockType::Manual')
+                # Also disable the construction/definition enabled state
+                for key in ('Construction_EnabledState', 'Def_EnabledState',
+                            'Recipe_EnabledState'):
+                    var = self.form_vars.get(key)
+                    if var:
+                        var.set('ERowEnabledState::Disabled')
+            elif mode in ('flora', 'loot'):
+                enabled_var = self.form_vars.get('Def_EnabledState')
+                if enabled_var:
+                    enabled_var.set('ERowEnabledState::Disabled')
+        else:
+            # Make visible: restore original values from Secrets Source
+            self._restore_original_visibility()
+
+        self._save_changes()
+
+    def _restore_original_visibility(self):
+        """Restore the current item's visibility fields from Secrets Source."""
+        name = self.current_secrets_recipe_name
+        if not name:
+            return
+
+        mode = self.view_mode or 'buildings'
+        if mode in ('buildings', 'weapons', 'armor', 'tools', 'items'):
+            # Restore recipe unlock types
+            src_path = self._get_secrets_recipes_path()
+            if src_path and src_path.exists():
+                orig_row = self._get_row_by_name(src_path, name)
+                orig_default = self._extract_unlock_type(orig_row)
+                orig_sandbox = self._extract_sandbox_unlock_type(orig_row)
+                default_var = self.form_vars.get('DefaultUnlocks_UnlockType')
+                sandbox_var = self.form_vars.get('SandboxUnlocks_UnlockType')
+                if default_var:
+                    default_var.set(orig_default)
+                if sandbox_var:
+                    sandbox_var.set(orig_sandbox)
+                # Restore recipe EnabledState
+                orig_recipe_state = self._extract_enabled_state(orig_row)
+                recipe_var = self.form_vars.get('Recipe_EnabledState')
+                if recipe_var:
+                    recipe_var.set(orig_recipe_state)
+            # Restore construction/definition EnabledState
+            src_defs = self._get_secrets_constructions_path()
+            if src_defs.exists():
+                orig_def_row = self._get_row_by_name(src_defs, name)
+                orig_def_state = self._extract_enabled_state(orig_def_row)
+                for key in ('Construction_EnabledState', 'Def_EnabledState'):
+                    var = self.form_vars.get(key)
+                    if var:
+                        var.set(orig_def_state)
+        elif mode in ('flora', 'loot'):
+            src_path = self._get_secrets_constructions_path()
+            if src_path.exists():
+                orig_row = self._get_row_by_name(src_path, name)
+                orig_state = self._extract_enabled_state(orig_row)
+                enabled_var = self.form_vars.get('Def_EnabledState')
+                if enabled_var:
+                    enabled_var.set(orig_state)
+
+    def _on_bulk_eye_toggle(self):
+        """Toggle visibility for ALL items in the current list."""
+        if not self.building_list_items:
+            return
+
+        # Toggle bulk state
+        self._bulk_eye_visible = not self._bulk_eye_visible
+        make_hidden = not self._bulk_eye_visible
+
+        # Update bulk button icon
+        visible_icon, hidden_icon, _ = self._get_eye_icons()
+        self.bulk_eye_btn.configure(
+            image=hidden_icon if make_hidden else visible_icon
+        )
+
+        mode = self.view_mode or 'buildings'
+        item_names = list(self.building_list_items.keys())
+
+        if mode in ('buildings', 'weapons', 'armor', 'tools', 'items'):
+            self._bulk_set_recipe_visibility(item_names, make_hidden)
+        elif mode in ('flora', 'loot'):
+            self._bulk_set_definition_visibility(item_names, make_hidden)
+
+        # Update all eye icons and check all checkboxes in the list
+        target_icon = hidden_icon if make_hidden else visible_icon
+        for name in item_names:
+            item_data = self.building_list_items.get(name)
+            if item_data:
+                row_frame = item_data[0]
+                for child in row_frame.winfo_children():
+                    if isinstance(child, ctk.CTkLabel) and child.cget("text") == "":
+                        try:
+                            child.configure(image=target_icon)
+                        except (ValueError, AttributeError):
+                            pass
+                        break
+            # Check the checkbox so the .def file picks up the changes
+            check_var = self.construction_check_vars.get(name)
+            if check_var:
+                check_var.set(True)
+        self._save_checked_states_to_ini()
+
+        # If an item is currently loaded in the form, refresh its form_vars
+        if self.current_secrets_recipe_name:
+            self._load_secrets_recipe(self.current_secrets_recipe_name)
+
+        self._set_status(
+            f"{'Hid' if make_hidden else 'Restored'} {len(item_names)} items"
+        )
+
+    def _bulk_set_recipe_visibility(self, item_names, make_hidden):
+        """Bulk-set recipe unlock types and EnabledState for all items."""
+        name_set = set(item_names)
+
+        # Load originals from Secrets Source for restoring
+        orig_recipe_rows = {}
+        orig_def_rows = {}
+        if not make_hidden:
+            src_path = self._get_secrets_recipes_path()
+            if src_path and src_path.exists():
+                orig_recipe_rows = self._load_all_rows(src_path)
+            src_defs = self._get_secrets_constructions_path()
+            if src_defs.exists():
+                orig_def_rows = self._load_all_rows(src_defs)
+
+        # Update recipes JSON (unlock types + EnabledState)
+        recipes_path = self._get_cache_recipes_path()
+        if recipes_path and recipes_path.exists():
+            with open(recipes_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            exports = data.get('Exports', [])
+            if exports:
+                rows = exports[0].get('Table', {}).get('Data', [])
+                for row in rows:
+                    row_name = row.get('Name')
+                    if row_name not in name_set:
+                        continue
+                    for prop in row.get('Value', []):
+                        if prop.get('Name') in ('DefaultUnlocks', 'SandboxUnlocks'):
+                            for unlock_prop in prop.get('Value', []):
+                                if (unlock_prop.get('Name') == 'UnlockType'
+                                        and 'EnumPropertyData' in unlock_prop.get('$type', '')):
+                                    if make_hidden:
+                                        unlock_prop['Value'] = 'EMorRecipeUnlockType::Manual'
+                                    else:
+                                        orig = orig_recipe_rows.get(row_name, {})
+                                        if prop.get('Name') == 'DefaultUnlocks':
+                                            unlock_prop['Value'] = self._extract_unlock_type(orig)
+                                        else:
+                                            unlock_prop['Value'] = self._extract_sandbox_unlock_type(orig)
+                        elif (prop.get('Name') == 'EnabledState'
+                                and 'EnumPropertyData' in prop.get('$type', '')):
+                            if make_hidden:
+                                prop['Value'] = 'ERowEnabledState::Disabled'
+                            else:
+                                orig = orig_recipe_rows.get(row_name, {})
+                                prop['Value'] = self._extract_enabled_state(orig)
+
+            with open(recipes_path, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False)
+
+        # Update constructions/definitions JSON (EnabledState)
+        defs_path = self._get_cache_constructions_path()
+        if defs_path and defs_path.exists():
+            with open(defs_path, 'r', encoding='utf-8') as f:
+                def_data = json.load(f)
+
+            exports = def_data.get('Exports', [])
+            if exports:
+                rows = exports[0].get('Table', {}).get('Data', [])
+                for row in rows:
+                    row_name = row.get('Name')
+                    if row_name not in name_set:
+                        continue
+                    for prop in row.get('Value', []):
+                        if (prop.get('Name') == 'EnabledState'
+                                and 'EnumPropertyData' in prop.get('$type', '')):
+                            if make_hidden:
+                                prop['Value'] = 'ERowEnabledState::Disabled'
+                            else:
+                                orig = orig_def_rows.get(row_name, {})
+                                prop['Value'] = self._extract_enabled_state(orig)
+
+            with open(defs_path, 'w', encoding='utf-8') as f:
+                json.dump(def_data, f, indent=2, ensure_ascii=False)
+
+    def _bulk_set_definition_visibility(self, item_names, make_hidden):
+        """Bulk-set EnabledState for all definition items. Writes JSON once."""
+        defs_path = self._get_cache_constructions_path()
+        if not defs_path or not defs_path.exists():
+            return
+
+        with open(defs_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        name_set = set(item_names)
+
+        # Load originals for restoring
+        orig_rows = {}
+        if not make_hidden:
+            src_path = self._get_secrets_constructions_path()
+            if src_path.exists():
+                orig_rows = self._load_all_rows(src_path)
+
+        exports = data.get('Exports', [])
+        if exports:
+            rows = exports[0].get('Table', {}).get('Data', [])
+            for row in rows:
+                row_name = row.get('Name')
+                if row_name not in name_set:
+                    continue
+                for prop in row.get('Value', []):
+                    if (prop.get('Name') == 'EnabledState'
+                            and 'EnumPropertyData' in prop.get('$type', '')):
+                        if make_hidden:
+                            prop['Value'] = 'ERowEnabledState::Disabled'
+                        else:
+                            orig = orig_rows.get(row_name, {})
+                            prop['Value'] = self._extract_enabled_state(orig)
+
+        with open(defs_path, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
 
     def _update_autocomplete_index(self):
         """Extract new values from the current form and add them to the autocomplete index.
@@ -5491,6 +5849,159 @@ class BuildingsView(ctk.CTkFrame):
 
         return {}
 
+    def _load_all_rows(self, json_path: Path) -> dict:
+        """Load all rows from a JSON data table into a dict keyed by name.
+
+        Args:
+            json_path: Path to the JSON file
+
+        Returns:
+            Dict mapping row name to full row dict
+        """
+        rows_by_name = {}
+        if not json_path or not json_path.exists():
+            return rows_by_name
+
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            exports = data.get('Exports', [])
+            if exports:
+                table = exports[0].get('Table', {})
+                for row in table.get('Data', []):
+                    name = row.get('Name')
+                    if name:
+                        rows_by_name[name] = row
+
+        except (json.JSONDecodeError, OSError, KeyError) as e:
+            logger.error("Error loading rows from %s: %s", json_path, e)
+
+        return rows_by_name
+
+    @staticmethod
+    def _extract_unlock_type(row: dict) -> str:
+        """Extract DefaultUnlocks UnlockType from a raw recipe row."""
+        for prop in row.get('Value', []):
+            if prop.get('Name') == 'DefaultUnlocks':
+                for unlock_prop in prop.get('Value', []):
+                    if (unlock_prop.get('Name') == 'UnlockType'
+                            and 'EnumPropertyData' in unlock_prop.get('$type', '')):
+                        return unlock_prop.get('Value', 'EMorRecipeUnlockType::Manual')
+        return 'EMorRecipeUnlockType::Manual'
+
+    @staticmethod
+    def _extract_sandbox_unlock_type(row: dict) -> str:
+        """Extract SandboxUnlocks UnlockType from a raw recipe row."""
+        for prop in row.get('Value', []):
+            if prop.get('Name') == 'SandboxUnlocks':
+                for unlock_prop in prop.get('Value', []):
+                    if (unlock_prop.get('Name') == 'UnlockType'
+                            and 'EnumPropertyData' in unlock_prop.get('$type', '')):
+                        return unlock_prop.get('Value', 'EMorRecipeUnlockType::Manual')
+        return 'EMorRecipeUnlockType::Manual'
+
+    @staticmethod
+    def _extract_enabled_state(row: dict) -> str:
+        """Extract EnabledState from a raw definition row."""
+        for prop in row.get('Value', []):
+            if (prop.get('Name') == 'EnabledState'
+                    and 'EnumPropertyData' in prop.get('$type', '')):
+                return prop.get('Value', 'ERowEnabledState::Live')
+        return 'ERowEnabledState::Live'
+
+    def _is_item_visible(self, row: dict) -> bool:
+        """Check if a recipe row is visible (not hidden).
+
+        For recipes: hidden only when BOTH DefaultUnlocks AND SandboxUnlocks are Manual.
+        """
+        default_ut = self._extract_unlock_type(row)
+        sandbox_ut = self._extract_sandbox_unlock_type(row)
+        both_manual = (default_ut == 'EMorRecipeUnlockType::Manual'
+                       and sandbox_ut == 'EMorRecipeUnlockType::Manual')
+        return not both_manual
+
+    def _compute_visibility_map(self, item_names) -> dict:
+        """Compute visibility for a set of item names based on game data.
+
+        For recipe-based modes: hidden only when BOTH unlock types are Manual.
+        For non-recipe modes: checks EnabledState (Disabled = hidden).
+
+        Returns:
+            Dict mapping name -> bool (True=visible, False=hidden)
+        """
+        visibility = {}
+
+        if self.view_mode in ('buildings', 'weapons', 'armor', 'tools', 'items'):
+            recipes_path = self._get_cache_recipes_path()
+            all_rows = self._load_all_rows(recipes_path)
+            for name in item_names:
+                row = all_rows.get(name, {})
+                visibility[name] = self._is_item_visible(row)
+
+        elif self.view_mode in ('flora', 'loot'):
+            constructions_path = self._get_cache_constructions_path()
+            all_rows = self._load_all_rows(constructions_path)
+            for name in item_names:
+                row = all_rows.get(name, {})
+                enabled_state = self._extract_enabled_state(row)
+                visibility[name] = enabled_state != 'ERowEnabledState::Disabled'
+
+        return visibility
+
+    def _get_eye_icons(self):
+        """Get or create cached eye visibility icons.
+
+        Returns:
+            tuple: (visible_icon, hidden_icon, mixed_icon) as CTkImage objects
+        """
+        if self._eye_visible_icon:
+            return self._eye_visible_icon, self._eye_hidden_icon, self._eye_mixed_icon
+
+        size = 64
+        display = (20, 20)
+        green = (76, 175, 80, 255)       # #4CAF50
+        dark_green = (27, 94, 32, 255)   # #1B5E20
+        red = (229, 57, 53, 255)         # #E53935
+        blue = (33, 150, 243, 255)       # #2196F3
+
+        # Open eye (green) - bold filled eye shape
+        img_open = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img_open)
+        draw.arc([4, 14, 60, 50], start=200, end=340, fill=green, width=4)
+        draw.arc([4, 14, 60, 50], start=20, end=160, fill=green, width=4)
+        draw.ellipse([18, 20, 46, 48], fill=green)
+        draw.ellipse([25, 27, 39, 41], fill=dark_green)
+        draw.ellipse([28, 26, 34, 32], fill=(255, 255, 255, 200))
+
+        self._eye_visible_icon = ctk.CTkImage(
+            light_image=img_open, dark_image=img_open, size=display
+        )
+
+        # Closed eye (red) - thick curved line with lashes
+        img_closed = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img_closed)
+        draw.arc([4, 10, 60, 50], start=0, end=180, fill=red, width=4)
+        for x in (16, 26, 38, 48):
+            draw.line([(x, 34), (x, 44)], fill=red, width=3)
+
+        self._eye_hidden_icon = ctk.CTkImage(
+            light_image=img_closed, dark_image=img_closed, size=display
+        )
+
+        # Closed eye (blue) - mixed state
+        img_mixed = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img_mixed)
+        draw.arc([4, 10, 60, 50], start=0, end=180, fill=blue, width=4)
+        for x in (16, 26, 38, 48):
+            draw.line([(x, 34), (x, 44)], fill=blue, width=3)
+
+        self._eye_mixed_icon = ctk.CTkImage(
+            light_image=img_mixed, dark_image=img_mixed, size=display
+        )
+
+        return self._eye_visible_icon, self._eye_hidden_icon, self._eye_mixed_icon
+
     def _get_recipe_names_from_namemap(self, json_path: Path) -> set:
         """Extract recipe/construction names from a JSON file's NameMap.
 
@@ -5754,6 +6265,10 @@ class BuildingsView(ctk.CTkFrame):
         # Sort recipe names alphabetically by game name
         sorted_names = sorted(recipes.keys(), key=lambda n: self._lookup_game_name(n).lower())
 
+        # Compute visibility for all items and get eye icons
+        visibility_map = self._compute_visibility_map(sorted_names)
+        visible_icon, hidden_icon, _ = self._get_eye_icons()
+
         # Create entry for each recipe
         for recipe_name in sorted_names:
             row_frame = ctk.CTkFrame(self.building_list, fg_color="transparent")
@@ -5790,6 +6305,14 @@ class BuildingsView(ctk.CTkFrame):
             file_label.bind("<Button-1>", lambda e, n=recipe_name: self._load_secrets_recipe(n))
             row_frame.bind("<Button-1>", lambda e, n=recipe_name: self._load_secrets_recipe(n))
 
+            # Eye visibility icon (right-justified)
+            is_visible = visibility_map.get(recipe_name, True)
+            eye_icon = visible_icon if is_visible else hidden_icon
+            eye_label = ctk.CTkLabel(
+                row_frame, image=eye_icon, text="", width=20,
+            )
+            eye_label.pack(side="right", padx=(0, 5))
+
             # Store reference for highlighting (using recipe_name as key)
             # Also store label_text for filtering
             self.building_list_items[recipe_name] = (row_frame, file_label, label_text)
@@ -5807,6 +6330,9 @@ class BuildingsView(ctk.CTkFrame):
 
         # Apply any active filter
         self._filter_secrets_list()
+
+        # Update bulk eye icon based on visibility of all listed items
+        self._update_bulk_eye_state()
 
     def _filter_secrets_list(self):
         """Filter the secrets list based on search text."""

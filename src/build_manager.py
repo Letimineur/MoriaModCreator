@@ -121,8 +121,9 @@ class BuildManager:  # pylint: disable=too-few-public-methods
 
             # Step 2: Convert JSON to uasset (40-70%)
             self._report_progress("Converting to uasset format...", 0.4)
-            if not self._convert_json_to_uasset(mod_name):
-                return False, "JSON to uasset conversion failed"
+            convert_ok, convert_error = self._convert_json_to_uasset(mod_name)
+            if not convert_ok:
+                return False, convert_error or "JSON to uasset conversion failed"
 
             # Step 3: Run retoc (70-90%)
             self._report_progress("Packaging mod files...", 0.7)
@@ -386,6 +387,15 @@ class BuildManager:  # pylint: disable=too-few-public-methods
                     property_path = change.get('property', '')
                     new_value = change.get('value', '')
 
+                    # Handle <add_property> child - ensure property exists before change
+                    add_prop_elem = change.find('add_property')
+                    if add_prop_elem is not None and add_prop_elem.text:
+                        prop_item = add_prop_elem.get('item', item_name)
+                        self._add_property_to_json(
+                            json_data, prop_item,
+                            add_prop_elem.text.strip(), property_path,
+                        )
+
                     logger.info(
                         "  CHANGE: item=%s prop=%s value=%s",
                         item_name, property_path, new_value
@@ -498,6 +508,120 @@ class BuildManager:  # pylint: disable=too-few-public-methods
         except (KeyError, IndexError, TypeError):
             # Not a DataTable format, that's fine
             pass
+
+    def _add_property_to_json(
+        self, json_data: dict, item_name: str,
+        property_json_text: str, change_property_path: str = '',
+    ):
+        """Add a property to a JSON structure if it doesn't already exist.
+
+        This handles the <add_property> element inside <change>, which ensures
+        a property exists before the change attempts to set its value.
+
+        Uses the parent change's property_path to navigate to the correct
+        nested location. For example, if change path is "PrimaryDrop.DropRate",
+        the property is added inside PrimaryDrop's Value array.
+
+        Args:
+            json_data: The full JSON data structure.
+            item_name: The row/export name to find.
+            property_json_text: JSON string defining the property to add.
+            change_property_path: The parent change's property path (dot notation).
+        """
+        try:
+            new_property = json.loads(property_json_text)
+        except json.JSONDecodeError as e:
+            logger.error(
+                "Failed to parse add_property JSON for %s: %s",
+                item_name, e,
+            )
+            return
+
+        prop_name = new_property.get('Name', '')
+        if not prop_name:
+            logger.error(
+                "add_property missing 'Name' field for item %s", item_name,
+            )
+            return
+
+        if 'Exports' not in json_data:
+            return
+
+        # Determine parent path segments from the change's property path
+        # e.g., "PrimaryDrop.DropRate" -> parent_parts = ["PrimaryDrop"]
+        parent_parts = []
+        if '.' in change_property_path:
+            parent_parts = change_property_path.split('.')[:-1]
+
+        # Find the target data array for this item
+        target_data = self._find_item_data(json_data, item_name)
+        if target_data is None:
+            return
+
+        # Navigate parent path to find the correct container
+        for part in parent_parts:
+            found = False
+            if isinstance(target_data, list):
+                for item in target_data:
+                    if isinstance(item, dict) and item.get('Name') == part:
+                        target_data = item.get('Value', [])
+                        found = True
+                        break
+            if not found:
+                logger.debug(
+                    "  ADD_PROPERTY: parent '%s' not found for %s",
+                    part, item_name,
+                )
+                return
+
+        # Add property if not already present
+        if isinstance(target_data, list):
+            exists = any(
+                p.get('Name') == prop_name
+                for p in target_data if isinstance(p, dict)
+            )
+            if not exists:
+                target_data.append(new_property)
+                logger.info(
+                    "  ADD_PROPERTY: %s.%s", item_name, prop_name,
+                )
+            else:
+                logger.debug(
+                    "  ADD_PROPERTY: %s.%s already exists",
+                    item_name, prop_name,
+                )
+
+    def _find_item_data(self, json_data: dict, item_name: str):
+        """Find the Data/Value array for a given item name.
+
+        Returns the list to search/modify, or None if not found.
+        """
+        # Try single-asset exports (ObjectName matching)
+        name_variations = [
+            f"Default__{item_name}_C",
+            f"Default__{item_name}",
+            item_name,
+            f"{item_name}_C",
+        ]
+        for name_variant in name_variations:
+            for export in json_data['Exports']:
+                if export.get('ObjectName', '') == name_variant:
+                    data = export.get('Data', [])
+                    if isinstance(data, list):
+                        return data
+
+        # Try DataTable format (Table.Data rows)
+        try:
+            table_data = json_data['Exports'][0]['Table']['Data']
+            for row in table_data:
+                if row.get('Name') == item_name:
+                    value_array = row.get('Value', [])
+                    if isinstance(value_array, list):
+                        return value_array
+        except (KeyError, IndexError, TypeError):
+            pass
+
+        return None
 
     def _set_nested_property_value(self, data: list | dict, property_path: str, new_value: str):
         """Set a property value using dot notation for nested traversal.
@@ -782,11 +906,12 @@ class BuildManager:  # pylint: disable=too-few-public-methods
 
     @staticmethod
     def _sync_namemap(json_data: dict):
-        """Ensure all NamePropertyData values are present in the NameMap.
+        """Ensure all FName-referenced values are present in the NameMap.
 
         UAssetAPI requires every FName referenced in the data to exist in
         the top-level NameMap. After modifying values, new names may have
-        been introduced that aren't in the map yet.
+        been introduced that aren't in the map yet. This includes both
+        NamePropertyData values and EnumPropertyData values/types.
         """
         name_map = json_data.get('NameMap')
         if not isinstance(name_map, list):
@@ -795,15 +920,21 @@ class BuildManager:  # pylint: disable=too-few-public-methods
         name_set = set(name_map)
         added = []
 
+        def _add_if_missing(val):
+            if isinstance(val, str) and val and val not in name_set:
+                name_set.add(val)
+                name_map.append(val)
+                added.append(val)
+
         def _scan(obj):
-            """Recursively scan for NamePropertyData values."""
+            """Recursively scan for NamePropertyData and EnumPropertyData."""
             if isinstance(obj, dict):
-                if 'NamePropertyData' in obj.get('$type', ''):
-                    val = obj.get('Value')
-                    if isinstance(val, str) and val not in name_set:
-                        name_set.add(val)
-                        name_map.append(val)
-                        added.append(val)
+                dtype = obj.get('$type', '')
+                if 'NamePropertyData' in dtype:
+                    _add_if_missing(obj.get('Value'))
+                elif 'EnumPropertyData' in dtype:
+                    _add_if_missing(obj.get('Value'))
+                    _add_if_missing(obj.get('EnumType'))
                 for v in obj.values():
                     _scan(v)
             elif isinstance(obj, list):
@@ -816,21 +947,21 @@ class BuildManager:  # pylint: disable=too-few-public-methods
         if added:
             logger.info("NameMap: added %d new entries: %s", len(added), added)
 
-    def _convert_json_to_uasset(self, mod_name: str) -> bool:
+    def _convert_json_to_uasset(self, mod_name: str) -> tuple[bool, str]:
         """Convert JSON files to uasset format using UAssetGUI.
 
         Args:
             mod_name: Name of the mod.
 
         Returns:
-            True if successful, False otherwise.
+            Tuple of (success, error_detail). error_detail is empty on success.
         """
         utilities_dir = get_utilities_dir()
         uassetgui_path = utilities_dir / UASSETGUI_EXE
 
         if not uassetgui_path.exists():
             logger.error("%s not found at %s", UASSETGUI_EXE, uassetgui_path)
-            return False
+            return (False, f"{UASSETGUI_EXE} not found at {uassetgui_path}")
 
         mymodfiles_base = get_default_mymodfiles_dir() / mod_name
         json_dir = mymodfiles_base / JSONFILES_DIR
@@ -841,7 +972,7 @@ class BuildManager:  # pylint: disable=too-few-public-methods
         json_files = list(json_dir.rglob('*.json'))
         if not json_files:
             logger.error("No JSON files found to convert")
-            return False
+            return (False, "No JSON files found to convert")
 
         for i, json_file in enumerate(json_files):
             # Update progress
@@ -871,22 +1002,27 @@ class BuildManager:  # pylint: disable=too-few-public-methods
                 )
 
                 if result.returncode != 0 or not uasset_file.exists():
+                    error_output = (
+                        result.stderr.strip() if result.stderr
+                        else result.stdout.strip() if result.stdout
+                        else "Unknown error"
+                    )
                     logger.error(
                         "Failed to convert %s:\n  returncode=%s\n  stdout=%s\n  stderr=%s",
                         json_file.name, result.returncode,
                         result.stdout.strip() if result.stdout else "(empty)",
                         result.stderr.strip() if result.stderr else "(empty)"
                     )
-                    return False
+                    return (False, f"File: {json_file.name}\n\n{error_output}")
 
             except subprocess.TimeoutExpired:
                 logger.error("Timeout converting %s", json_file.name)
-                return False
+                return (False, f"File: {json_file.name}\n\nConversion timed out")
             except OSError as e:
                 logger.error("Error converting %s: %s", json_file.name, e)
-                return False
+                return (False, f"File: {json_file.name}\n\n{e}")
 
-        return True
+        return (True, "")
 
     def _run_retoc(self, mod_name: str) -> bool:
         """Run retoc to package uasset files into zen format.

@@ -22,6 +22,7 @@ import shutil
 import tkinter as tk
 from tkinter import ttk
 import xml.etree.ElementTree as ET
+import xml.dom.minidom
 from pathlib import Path
 from typing import Optional
 
@@ -1236,11 +1237,32 @@ class MainWindow(ctk.CTk):
                 prop = change_elem.get('property', '')
                 value = change_elem.get('value', '')
                 if item and prop:  # Only add if we have at least item and property
-                    changes.append({
+                    change_data = {
                         'item': item,
                         'property': prop,
                         'value': value
-                    })
+                    }
+                    # Check for <add_property> child element
+                    add_prop = change_elem.find('add_property')
+                    if add_prop is not None and add_prop.text:
+                        json_text = add_prop.text.strip()
+                        change_data['add_property_json'] = json_text
+                        try:
+                            prop_json = json.loads(json_text)
+                            change_data['add_property'] = True
+                            change_data['add_property_item'] = add_prop.get('item', '')
+                            change_data['add_property_name'] = prop_json.get('Name', '')
+                            change_data['add_property_default'] = str(
+                                prop_json.get('Value', '')
+                            )
+                            change_data['add_property_type'] = prop_json.get(
+                                '$type', ''
+                            ).split('.')[-1].replace(
+                                'Data, UAssetAPI', ''
+                            ).strip().rstrip(',')
+                        except (json.JSONDecodeError, AttributeError):
+                            change_data['add_property'] = True
+                    changes.append(change_data)
             # Also find all <delete> elements (for GameplayTagContainer properties)
             for delete_elem in root.iter('delete'):
                 item = delete_elem.get('item', '')
@@ -1647,13 +1669,15 @@ class MainWindow(ctk.CTk):
 
         game_data = self._load_game_data(mod_file_path)
         if not game_data:
-            return display_data
+            # No game data available - build display from XML changes alone
+            return self._build_display_data_from_xml(file_path)
 
         # Get XML changes as a lookup: {item_name: {property: new_value}}
         # For GameplayTagContainer (delete), we track: {item_name: {property: {tag: is_delete}}}
         xml_changes = self._get_definition_changes(file_path)
         changes_lookup = {}
         tag_deletes = {}  # Separate lookup for tag-based deletes: {item_name: {property: set(tags)}}
+        add_properties = {}  # Track add_property data: {item_name: {property: add_prop_data}}
 
         for change in xml_changes:
             item_name = change['item']
@@ -1674,6 +1698,16 @@ class MainWindow(ctk.CTk):
                     changes_lookup[item_name] = {}
                 changes_lookup[item_name][prop] = value
 
+                # Track add_property metadata if present
+                if change.get('add_property', False):
+                    if item_name not in add_properties:
+                        add_properties[item_name] = {}
+                    add_properties[item_name][prop] = {
+                        'name': change.get('add_property_name', ''),
+                        'type': change.get('add_property_type', ''),
+                        'default': change.get('add_property_default', '')
+                    }
+
         # Get all items from the game data
         # Try data table format first (Exports[0].Table.Data)
         items = None
@@ -1686,7 +1720,9 @@ class MainWindow(ctk.CTk):
 
         # If not a data table, try single asset format (Exports with Data array)
         if not is_data_table:
-            return self._build_display_data_single_asset(game_data, changes_lookup)
+            return self._build_display_data_single_asset(
+                game_data, changes_lookup, add_properties
+            )
 
         # Cache for string tables to avoid reloading
         string_tables = {}
@@ -1817,20 +1853,39 @@ class MainWindow(ctk.CTk):
                     'has_mod': has_mod
                 })
 
+                # Check if this property has add_property metadata
+                if item_name in add_properties and prop_name in add_properties[item_name]:
+                    add_data = add_properties[item_name][prop_name]
+                    prop_type = add_data.get('type', 'Property')
+                    prop_default = add_data.get('default', '0.0')
+                    display_data.append({
+                        'row_name': item_name,
+                        'name': display_name,
+                        'property': f"{add_data.get('name', '')} [add]",
+                        'value': f"{prop_type} (default: {prop_default})",
+                        'new_value': '[Structure Added]',
+                        'has_mod': True
+                    })
+
         # Sort by name
         return sorted(display_data, key=lambda x: x['name'].lower())
 
-    def _build_display_data_single_asset(self, game_data: dict, changes_lookup: dict) -> list[dict]:
+    def _build_display_data_single_asset(
+        self, game_data: dict, changes_lookup: dict, add_properties: dict = None
+    ) -> list[dict]:
         """Build display data for single asset files (non-data-table).
 
         Args:
             game_data: The parsed JSON game data.
             changes_lookup: Dictionary of {item_name: {property: new_value}}.
+            add_properties: Dictionary of {item_name: {property: add_prop_data}}.
 
         Returns:
             List of dictionaries with name, property, value, new_value keys.
         """
         display_data = []
+        if add_properties is None:
+            add_properties = {}
 
         # Check for NONE entries - these define properties/values for all exports
         none_defaults = {}
@@ -1924,7 +1979,67 @@ class MainWindow(ctk.CTk):
                         'has_mod': has_mod
                     })
 
+                    # Check if this property has add_property metadata
+                    for add_item_name, add_props in add_properties.items():
+                        if add_item_name == item_name or add_item_name in item_name:
+                            if prop_name in add_props:
+                                add_data = add_props[prop_name]
+                                # Create additional row showing the add_property structure
+                                prop_type = add_data.get('type', 'Property')
+                                prop_default = add_data.get('default', '0.0')
+                                display_data.append({
+                                    'row_name': add_item_name,
+                                    'name': item_name,
+                                    'property': f"{add_data.get('name', '')} [add]",
+                                    'value': f"{prop_type} (default: {prop_default})",
+                                    'new_value': '[Structure Added]',
+                                    'has_mod': True
+                                })
+                                break
+
         return display_data
+
+    def _build_display_data_from_xml(self, file_path: Path) -> list[dict]:
+        """Build display data from XML changes when game data is unavailable.
+
+        Shows the changes defined in the .def file without requiring
+        the game JSON files to exist. Handles add_property elements
+        by showing the property being added and its default value.
+
+        Args:
+            file_path: Path to the .def file.
+
+        Returns:
+            List of display row dictionaries.
+        """
+        display_data = []
+        xml_changes = self._get_definition_changes(file_path)
+
+        for change in xml_changes:
+            item_name = change['item']
+            prop = change['property']
+            new_value = change['value']
+            is_add_prop = change.get('add_property', False)
+
+            if is_add_prop:
+                # Show add_property info: type and default value
+                prop_type = change.get('add_property_type', '')
+                default_val = change.get('add_property_default', '—')
+                type_label = f" ({prop_type})" if prop_type else ""
+                current_display = f"{default_val}{type_label} [new]"
+            else:
+                current_display = "—"
+
+            display_data.append({
+                'row_name': item_name,
+                'name': item_name,
+                'property': prop,
+                'value': current_display,
+                'new_value': new_value,
+                'has_mod': True
+            })
+
+        return sorted(display_data, key=lambda x: x['name'].lower())
 
     def _expand_wildcard_property_single_asset(self, data: list, property_pattern: str) -> list[tuple[str, str]]:
         """Expand a wildcard [*] property pattern to all matching indices for single asset data.
@@ -2086,90 +2201,369 @@ class MainWindow(ctk.CTk):
                 desc_row, text=description, font=value_font, anchor="w"
             ).pack(side="left", fill="x", expand=True)
 
-        # Table header with tri-state checkbox only (column headers are in Treeview)
+        # Get XML changes for card-based display
+        xml_changes = self._get_definition_changes(file_path)
+
+        # Card-based view header
         header_frame = ctk.CTkFrame(details_frame, fg_color="transparent")
         header_frame.pack(fill="x", padx=10, pady=(10, 0))
 
-        # Header tri-state checkbox for select all/none/mixed (uses color to indicate mixed)
-        self.select_all_state = "none"  # Track state: "none", "all", "mixed"
-        self.select_all_var = ctk.BooleanVar(value=False)
-        self.select_all_btn = ctk.CTkCheckBox(
+        changes_label = ctk.CTkLabel(
             header_frame,
-            text="Select All / None",
-            variable=self.select_all_var,
-            width=20,
-            font=ctk.CTkFont(size=14),
-            command=self._on_select_all_toggle
+            text=f"{len(xml_changes)} Change{'s' if len(xml_changes) != 1 else ''}",
+            font=ctk.CTkFont(size=14, weight="bold")
         )
-        self.select_all_btn.pack(side="left")
+        changes_label.pack(side="left")
 
-        # Virtual scrolling container - uses canvas for efficient scrolling
-        self._setup_virtual_scroll_table(details_frame, display_data)
+        # Card-based scrolling container
+        self._setup_card_based_view(details_frame, xml_changes, file_path)
 
-        # Add Save button row at bottom of right pane with row count
+        # Add Save button row at bottom
         save_button_frame = ctk.CTkFrame(details_frame, fg_color="transparent")
         save_button_frame.pack(fill="x", padx=10, pady=(10, 10))
 
-        # Row count on the left
-        total_rows = len(display_data) if display_data else 0
-        row_count_label = ctk.CTkLabel(
-            save_button_frame,
-            text=f"Total: {total_rows} rows",
-            font=ctk.CTkFont(size=12),
-            text_color="gray"
-        )
-        row_count_label.pack(side="left")
-
-        # Search section in center
-        search_frame = ctk.CTkFrame(save_button_frame, fg_color="transparent")
-        search_frame.pack(side="left", expand=True)
-
-        # Search entry
-        self.search_var = ctk.StringVar()
-        def search_text_changed_callback(_, __, ___):
-            self._on_search_text_changed()
-        self.search_var.trace_add("write", search_text_changed_callback)
-        self.search_entry = ctk.CTkEntry(
-            search_frame,
-            textvariable=self.search_var,
-            width=200,
-            height=32,
-            placeholder_text="Search name...",
-            font=ctk.CTkFont(size=14)
-        )
-        self.search_entry.pack(side="left", padx=(0, 5))
-        self.search_entry.bind("<Return>", lambda e: self._on_search_next())
-
-        # Search button (purple)
-        search_btn = ctk.CTkButton(
-            search_frame,
-            text="Find Next",
-            width=80,
-            height=32,
-            fg_color="#8B5CF6",  # Purple
-            hover_color="#7C3AED",  # Darker purple on hover
-            text_color="white",
-            font=ctk.CTkFont(weight="bold"),
-            command=self._on_search_next
-        )
-        search_btn.pack(side="left")
-
-        # Track search position
-        self.search_last_index = -1
-        self.search_last_text = ""
-
         self.save_btn = ctk.CTkButton(
             save_button_frame,
-            text="Save",
-            width=80,
-            height=32,
+            text="Save Changes",
+            width=120,
+            height=36,
             fg_color=COLOR_SAVE_BUTTON,
             hover_color=COLOR_SAVE_BUTTON_HOVER,
             text_color="white",
-            font=ctk.CTkFont(weight="bold"),
-            command=self._on_save_click
+            font=ctk.CTkFont(size=14, weight="bold"),
+            command=self._on_save_card_changes
         )
         self.save_btn.pack(side="right")
+
+    def _setup_card_based_view(self, parent: ctk.CTkFrame, xml_changes: list[dict], file_path: Path):
+        """Set up card-based view for displaying and editing definition changes.
+
+        Args:
+            parent: Parent frame to contain the cards.
+            xml_changes: List of change dictionaries from _get_definition_changes().
+            file_path: Path to the .def file being displayed.
+        """
+        # Store changes and cards for saving later
+        self.card_changes = xml_changes
+        self.change_cards = []
+
+        # Create scrollable frame for cards
+        cards_container = ctk.CTkScrollableFrame(parent, fg_color="transparent")
+        cards_container.pack(fill="both", expand=True, padx=10, pady=(5, 10))
+
+        if not xml_changes:
+            # Show empty state
+            empty_label = ctk.CTkLabel(
+                cards_container,
+                text="No changes defined in this .def file",
+                text_color="gray",
+                font=ctk.CTkFont(size=14)
+            )
+            empty_label.pack(pady=20)
+            return
+
+        # Create a card for each change
+        for i, change in enumerate(xml_changes):
+            card = self._create_change_card(cards_container, change, i)
+            self.change_cards.append(card)
+
+    def _create_change_card(self, parent: ctk.CTkFrame, change: dict, index: int) -> dict:
+        """Create a card UI for a single change element.
+
+        Args:
+            parent: Parent container for the card.
+            change: Change dictionary with item, property, value, etc.
+            index: Index of this change in the list.
+
+        Returns:
+            Dictionary with card widgets and data for saving.
+        """
+        # Main card frame
+        card_frame = ctk.CTkFrame(parent, corner_radius=8)
+        card_frame.pack(fill="x", pady=(0, 10))
+
+        # Card header
+        header = ctk.CTkFrame(card_frame, fg_color="transparent")
+        header.pack(fill="x", padx=10, pady=(10, 5))
+
+        # Change type badge
+        change_type = "DELETE" if change.get('is_delete') else "CHANGE"
+        has_add_prop = change.get('add_property', False)
+        if has_add_prop:
+            change_type += " + ADD PROPERTY"
+
+        type_label = ctk.CTkLabel(
+            header,
+            text=change_type,
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color="#8B5CF6" if has_add_prop else "#3B82F6",
+            anchor="w"
+        )
+        type_label.pack(side="left")
+
+        # Card body with fields
+        body = ctk.CTkFrame(card_frame, fg_color="transparent")
+        body.pack(fill="both", expand=True, padx=10, pady=(5, 10))
+
+        # Item field
+        item_row = ctk.CTkFrame(body, fg_color="transparent")
+        item_row.pack(fill="x", pady=2)
+        ctk.CTkLabel(
+            item_row,
+            text="Item:",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            width=100,
+            anchor="w"
+        ).pack(side="left")
+        item_entry = ctk.CTkEntry(
+            item_row,
+            font=ctk.CTkFont(size=12),
+            height=28
+        )
+        item_entry.insert(0, change['item'])
+        item_entry.pack(side="left", fill="x", expand=True)
+
+        # Property field
+        prop_row = ctk.CTkFrame(body, fg_color="transparent")
+        prop_row.pack(fill="x", pady=2)
+        ctk.CTkLabel(
+            prop_row,
+            text="Property:",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            width=100,
+            anchor="w"
+        ).pack(side="left")
+        prop_entry = ctk.CTkEntry(
+            prop_row,
+            font=ctk.CTkFont(size=12),
+            height=28
+        )
+        prop_entry.insert(0, change['property'])
+        prop_entry.pack(side="left", fill="x", expand=True)
+
+        # Value field
+        value_row = ctk.CTkFrame(body, fg_color="transparent")
+        value_row.pack(fill="x", pady=2)
+        ctk.CTkLabel(
+            value_row,
+            text="Value:",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            width=100,
+            anchor="w"
+        ).pack(side="left")
+        value_entry = ctk.CTkEntry(
+            value_row,
+            font=ctk.CTkFont(size=12),
+            height=28
+        )
+        value_entry.insert(0, change['value'])
+        value_entry.pack(side="left", fill="x", expand=True)
+
+        # Add property section (if present)
+        add_prop_textbox = None
+        if has_add_prop:
+            # Separator
+            separator = ctk.CTkFrame(body, height=2, fg_color="gray30")
+            separator.pack(fill="x", pady=(10, 5))
+
+            # Add property header
+            add_prop_header = ctk.CTkLabel(
+                body,
+                text="⊕ Add Property Structure",
+                font=ctk.CTkFont(size=12, weight="bold"),
+                text_color="#8B5CF6",
+                anchor="w"
+            )
+            add_prop_header.pack(fill="x", pady=(5, 5))
+
+            # Property details
+            prop_name = change.get('add_property_name', '')
+            prop_type = change.get('add_property_type', '')
+            prop_default = change.get('add_property_default', '')
+
+            details_text = f"  Name: {prop_name}\n  Type: {prop_type}\n  Default: {prop_default}"
+            details_label = ctk.CTkLabel(
+                body,
+                text=details_text,
+                font=ctk.CTkFont(size=11, family="Consolas"),
+                text_color="gray70",
+                anchor="w",
+                justify="left"
+            )
+            details_label.pack(fill="x", pady=(0, 5))
+
+            # JSON editor (expandable)
+            json_label = ctk.CTkLabel(
+                body,
+                text="JSON Structure:",
+                font=ctk.CTkFont(size=11),
+                anchor="w"
+            )
+            json_label.pack(fill="x")
+
+            add_prop_textbox = ctk.CTkTextbox(
+                body,
+                height=100,
+                font=ctk.CTkFont(size=11, family="Consolas"),
+                wrap="none"
+            )
+            # Insert actual JSON from .def file
+            json_text = change.get('add_property_json', '')
+            if json_text:
+                # Pretty-print the JSON for readability
+                try:
+                    parsed = json.loads(json_text)
+                    json_text = json.dumps(parsed, indent=2)
+                except json.JSONDecodeError:
+                    pass  # Use original text if parsing fails
+            add_prop_textbox.insert("1.0", json_text)
+            add_prop_textbox.pack(fill="x", pady=(2, 0))
+
+        # Store card data for saving
+        return {
+            'frame': card_frame,
+            'item_entry': item_entry,
+            'property_entry': prop_entry,
+            'value_entry': value_entry,
+            'add_property_textbox': add_prop_textbox,
+            'original_change': change,
+            'index': index
+        }
+
+    def _on_save_card_changes(self):
+        """Save all changes from the card-based view back to the .def file."""
+        if not hasattr(self, 'current_definition_path') or not self.current_definition_path:
+            self.set_status_message("No definition file loaded")
+            return
+
+        if not hasattr(self, 'change_cards') or not self.change_cards:
+            self.set_status_message("No changes to save")
+            return
+
+        try:
+            # Parse existing .def file to preserve metadata
+            tree = ET.parse(self.current_definition_path)
+            root = tree.getroot()
+
+            # Get metadata
+            title_elem = root.find('title')
+            author_elem = root.find('author')
+            desc_elem = root.find('description')
+            mod_elem = root.find('mod')
+
+            if mod_elem is None:
+                self.set_status_message("Error: No <mod> element found in .def file")
+                return
+
+            mod_file = mod_elem.get('file', '')
+
+            # Create new XML structure
+            new_root = ET.Element('definition')
+
+            # Add metadata
+            if title_elem is not None and title_elem.text:
+                title = ET.SubElement(new_root, 'title')
+                title.text = title_elem.text
+
+            if author_elem is not None and author_elem.text:
+                author = ET.SubElement(new_root, 'author')
+                author.text = author_elem.text
+
+            if desc_elem is not None and desc_elem.text:
+                description = ET.SubElement(new_root, 'description')
+                description.text = desc_elem.text
+
+            # Create mod element
+            new_mod = ET.SubElement(new_root, 'mod', file=mod_file)
+
+            # Extract data from cards and rebuild changes
+            for card in self.change_cards:
+                item_val = card['item_entry'].get().strip()
+                prop_val = card['property_entry'].get().strip()
+                value_val = card['value_entry'].get().strip()
+
+                if not item_val or not prop_val:
+                    continue  # Skip invalid entries
+
+                # Create change element
+                change = ET.SubElement(
+                    new_mod, 'change',
+                    item=item_val,
+                    property=prop_val,
+                    value=value_val
+                )
+
+                # Add add_property if present
+                if card['add_property_textbox'] is not None:
+                    json_text = card['add_property_textbox'].get("1.0", "end-1c").strip()
+                    if json_text:
+                        # Get the add_property item attribute from original change
+                        add_prop_item = card['original_change'].get(
+                            'add_property_item', item_val
+                        )
+                        add_prop = ET.SubElement(
+                            change, 'add_property', item=add_prop_item
+                        )
+                        add_prop.text = json_text
+
+            # Write to file with proper formatting
+            self._write_pretty_xml(new_root, self.current_definition_path)
+
+            self.set_status_message(
+                f"Saved {len(self.change_cards)} change(s) to {self.current_definition_path.name}"
+            )
+
+        except ET.ParseError as e:
+            self.set_status_message(f"Error parsing .def file: {e}")
+        except (OSError, PermissionError) as e:
+            self.set_status_message(f"Error saving file: {e}")
+
+    def _write_pretty_xml(self, root: ET.Element, file_path: Path):
+        """Write XML to file with proper indentation and CDATA handling.
+
+        Args:
+            root: The root XML element to write.
+            file_path: Path to write the XML file.
+        """
+        # Manually build XML with CDATA support
+        lines = ['<?xml version=\'1.0\' encoding=\'UTF-8\'?>']
+        lines.append('<definition>')
+
+        # Add metadata
+        for child in root:
+            if child.tag in ('title', 'author', 'description'):
+                lines.append(f'  <{child.tag}>{child.text or ""}</{child.tag}>')
+            elif child.tag == 'mod':
+                mod_file = child.get('file', '')
+                lines.append(f'  <mod file="{mod_file}">')
+
+                # Add changes
+                for change in child:
+                    if change.tag == 'change':
+                        item = change.get('item', '')
+                        prop = change.get('property', '')
+                        value = change.get('value', '')
+                        lines.append(
+                            f'    <change item="{item}" '
+                            f'property="{prop}" value="{value}">'
+                        )
+
+                        # Check for add_property child
+                        add_prop = change.find('add_property')
+                        if add_prop is not None:
+                            add_item = add_prop.get('item', '')
+                            json_text = add_prop.text or ''
+                            lines.append(f'      <add_property item="{add_item}"><![CDATA[{json_text}]]></add_property>')
+
+                        lines.append('    </change>')
+
+                lines.append('  </mod>')
+
+        lines.append('</definition>')
+
+        # Write to file
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(lines) + '\n')
 
     def _setup_virtual_scroll_table(self, parent: ctk.CTkFrame, display_data: list[dict]):
         """Set up a virtual scrolling table that only renders visible rows.
@@ -2225,12 +2619,12 @@ class MainWindow(ctk.CTk):
                         background=bg_color,
                         foreground=fg_color,
                         fieldbackground=bg_color,
-                        rowheight=44,
-                        font=("", 20))
+                        rowheight=30,
+                        font=("", 16))
         style.configure("Virtual.Treeview.Heading",
                         background=self._get_theme_color(("gray85", "gray25")),
                         foreground=fg_color,
-                        font=("", 20, "bold"))
+                        font=("", 16, "bold"))
         style.map("Virtual.Treeview",
                   background=[("selected", selected_color)],
                   foreground=[("selected", fg_color)])
@@ -2592,7 +2986,8 @@ class MainWindow(ctk.CTk):
             if success:
                 self.set_status_message(f"Build complete! {message}")
             else:
-                self.set_status_message(f"Build failed: {message}", is_error=True)
+                self.set_status_message("Build failed", is_error=True)
+                self._show_build_error(message)
 
         except (OSError, RuntimeError) as e:
             logger.exception("Build failed with exception")
@@ -2883,6 +3278,64 @@ class MainWindow(ctk.CTk):
             width=80
         )
         ok_btn.pack(pady=(0, 20))
+
+    def _show_build_error(self, detail: str):
+        """Show a detailed build error dialog with the UAssetGUI output.
+
+        Args:
+            detail: Error detail string including filename and error output.
+        """
+        dialog = ctk.CTkToplevel(self)
+        dialog.title("Build Error")
+        dialog.geometry("550x300")
+        dialog.resizable(True, True)
+        dialog.transient(self)
+        dialog.grab_set()
+
+        # App icon
+        icon_path = Path(__file__).parent.parent.parent / "assets" / "icons" / "application icons" / "app_icon.ico"
+        if icon_path.exists():
+            dialog.after(10, lambda: dialog.iconbitmap(str(icon_path)))
+
+        # Center on screen
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() - 550) // 2
+        y = (dialog.winfo_screenheight() - 300) // 2
+        dialog.geometry(f"550x300+{x}+{y}")
+
+        # Header
+        ctk.CTkLabel(
+            dialog, text="Build Failed",
+            font=ctk.CTkFont(size=16, weight="bold"),
+            text_color="#F44336"
+        ).pack(padx=20, pady=(15, 5))
+
+        # Error detail textbox
+        textbox = ctk.CTkTextbox(
+            dialog, wrap="word",
+            font=ctk.CTkFont(family="Consolas", size=12)
+        )
+        textbox.pack(fill="both", expand=True, padx=20, pady=5)
+        textbox.insert("1.0", detail)
+        textbox.configure(state="disabled")
+
+        # Buttons
+        btn_frame = ctk.CTkFrame(dialog, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=20, pady=(5, 15))
+
+        def _copy():
+            dialog.clipboard_clear()
+            dialog.clipboard_append(detail)
+
+        ctk.CTkButton(
+            btn_frame, text="Copy to Clipboard",
+            width=130, command=_copy
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            btn_frame, text="OK",
+            width=80, command=dialog.destroy
+        ).pack(side="right")
 
     # =========================================================================
     # VIEW SWITCHING

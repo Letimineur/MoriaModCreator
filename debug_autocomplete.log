@@ -1,0 +1,79 @@
+INFO main: Imports completed
+INFO main: main() called
+DEBUG main: Setting color theme...
+DEBUG main: Config exists: True
+DEBUG main: Creating MainWindow...
+DEBUG PIL.PngImagePlugin: STREAM b'IHDR' 16 13
+DEBUG PIL.PngImagePlugin: STREAM b'IDAT' 41 3837
+DEBUG PIL.PngImagePlugin: STREAM b'IDAT' 3890 6
+DEBUG PIL.PngImagePlugin: STREAM b'IHDR' 16 13
+DEBUG PIL.PngImagePlugin: STREAM b'IDAT' 41 2186
+DEBUG PIL.PngImagePlugin: STREAM b'IDAT' 2239 6
+DEBUG PIL.PngImagePlugin: STREAM b'IHDR' 16 13
+DEBUG PIL.PngImagePlugin: STREAM b'IDAT' 41 1157
+DEBUG PIL.PngImagePlugin: STREAM b'IDAT' 1210 6
+DEBUG main: MainWindow created
+INFO main: Starting mainloop...
+INFO src.ui.buildings_view: Scanned JSON files: found 6920 values
+INFO src.ui.buildings_view: Loaded 189 display names from 3 string table files
+INFO src.ui.buildings_view: Found 984 names in DT_ConstructionRecipes.json
+INFO src.ui.buildings_view: Found 814 names in DT_ConstructionRecipes.json
+INFO src.ui.buildings_view: Found 1025 names in DT_Constructions.json
+INFO src.ui.buildings_view: Found 854 names in DT_Constructions.json
+INFO src.ui.buildings_view: New recipes: 170, New constructions: 171, Matching: 170
+DEBUG src.ui.buildings_view: Autocomplete for ResultConstructionHandle (key=ResultConstructions): 2067 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for DefaultRequiredConstructions (key=Constructions): 2205 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for DefaultUnlocks_RequiredItems (key=Items): 45 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for DefaultUnlocks_RequiredConstructions (key=Constructions): 2205 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for DefaultUnlocks_RequiredFragments (key=UnlockRequiredFragments): 5 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for SandboxUnlocks_RequiredItems (key=Items): 45 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for SandboxUnlocks_RequiredConstructions (key=Constructions): 2205 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for SandboxUnlocks_RequiredFragments (key=UnlockRequiredFragments): 5 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for SandboxRequiredConstructions (key=Constructions): 2205 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for Actor (key=Actors): 2439 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for BackwardCompatibilityActors (key=Actors): 2439 suggestions
+DEBUG src.ui.buildings_view: AutocompleteEntry key=BackSpace word='Tool' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry matches=0 for 'Tool'
+DEBUG src.ui.buildings_view: AutocompleteEntry key=BackSpace word='Too' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry matches=0 for 'Too'
+DEBUG src.ui.buildings_view: AutocompleteEntry key=BackSpace word='To' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry matches=0 for 'To'
+DEBUG src.ui.buildings_view: AutocompleteEntry key=BackSpace word='T' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry key=BackSpace word='' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry key=BackSpace word='' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry key=T word='T' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry key=Shift_L word='T' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry key=o word='To' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry matches=0 for 'To'
+DEBUG src.ui.buildings_view: AutocompleteEntry key=o word='Too' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry matches=0 for 'Too'
+DEBUG src.ui.buildings_view: AutocompleteEntry key=l word='Tool' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry matches=0 for 'Tool'
+DEBUG src.ui.buildings_view: AutocompleteEntry key=period word='Tool.' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry matches=0 for 'Tool.'
+DEBUG src.ui.buildings_view: AutocompleteEntry _check_focus_and_hide: focused=.!ctkframe.!ctkframe2.!buildingsview.!ctkframe2.!ctkframe2.!canvas.!ctkscrollableframe.!ctkframe.!ctkframe24.!autocompleteentry.!ctkentry.!entry dropdown=False
+DEBUG src.ui.buildings_view: AutocompleteEntry key=Shift_L word='T' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry key=t word='T' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry key=o word='To' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry matches=0 for 'To'
+DEBUG src.ui.buildings_view: AutocompleteEntry key=o word='Too' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry matches=0 for 'Too'
+DEBUG src.ui.buildings_view: AutocompleteEntry key=l word='Tool' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry matches=0 for 'Tool'
+DEBUG src.ui.buildings_view: AutocompleteEntry key=period word='Tool.' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry matches=0 for 'Tool.'
+DEBUG src.ui.buildings_view: AutocompleteEntry key=z word='Tool.' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry matches=0 for 'Tool.'
+DEBUG src.ui.buildings_view: AutocompleteEntry key=Control_L word='Tool.' suggestions=45
+DEBUG src.ui.buildings_view: AutocompleteEntry matches=0 for 'Tool.'
+DEBUG src.ui.buildings_view: Autocomplete for ResultConstructionHandle (key=ResultConstructions): 2067 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for DefaultRequiredConstructions (key=Constructions): 2205 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for DefaultUnlocks_RequiredItems (key=Items): 45 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for DefaultUnlocks_RequiredConstructions (key=Constructions): 2205 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for DefaultUnlocks_RequiredFragments (key=UnlockRequiredFragments): 5 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for SandboxUnlocks_RequiredItems (key=Items): 45 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for SandboxUnlocks_RequiredConstructions (key=Constructions): 2205 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for SandboxUnlocks_RequiredFragments (key=UnlockRequiredFragments): 5 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for SandboxRequiredConstructions (key=Constructions): 2205 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for Actor (key=Actors): 2439 suggestions
+DEBUG src.ui.buildings_view: Autocomplete for BackwardCompatibilityActors (key=Actors): 2439 suggestions
