@@ -40,3 +40,8 @@ Thumbs.db
 _ul
 _ul-*
 release/
+
+# Code signing credentials (NEVER commit this!)
+sign_config.py
+*.pfx
+*.p12

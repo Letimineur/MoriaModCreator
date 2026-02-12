@@ -31,7 +31,9 @@ ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 
-; Signing (uncomment after testing)
+; Signing (configure SignTool in Inno Setup IDE Tools > Configure Sign Tools)
+; Add a sign tool named "ssl" with your certificate details
+; Then uncomment the line below to enable automatic signing
 ; SignTool=ssl /d $q{#MyAppName}$q /du $q{#MyAppURL}$q $f
 
 [Languages]
