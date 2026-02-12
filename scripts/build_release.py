@@ -41,21 +41,22 @@ def run_command(cmd, description, timeout=120):
             capture_output=True,
             text=True,
             timeout=timeout,
-            shell=isinstance(cmd, str)
+            shell=isinstance(cmd, str),
+            check=False
         )
         if result.returncode == 0:
             print(f"[OK] {description} completed successfully")
             if result.stdout:
                 print(result.stdout)
             return True
-        else:
-            print(f"[ERROR] {description} failed!")
-            print(result.stderr)
-            return False
+
+        print(f"[ERROR] {description} failed!")
+        print(result.stderr)
+        return False
     except subprocess.TimeoutExpired:
         print(f"[ERROR] {description} timed out!")
         return False
-    except Exception as e:
+    except (OSError, ValueError) as e:
         print(f"[ERROR] {description} failed: {e}")
         return False
 
@@ -72,14 +73,11 @@ def build_executable(project_root):
 
 def sign_file(file_path):
     """Sign a file using the signing script."""
-    sign_script = Path(__file__).parent / "sign_executable.py"
-
-    # Temporarily modify sign_executable.py to accept a file path argument
-    import sys
-    sys.path.insert(0, str(sign_script.parent.parent))
+    # Import signing function from sign_executable module
+    sys.path.insert(0, str(Path(__file__).parent.parent))
 
     try:
-        from scripts.sign_executable import sign_file as sign_func
+        from scripts.sign_executable import sign_file as sign_func  # pylint: disable=import-outside-toplevel
         return sign_func(file_path)
     except ImportError:
         print("Warning: Could not import signing module")
@@ -99,7 +97,7 @@ def copy_to_release(project_root):
         return False
 
     shutil.copy2(dist_exe, release_exe)
-    print(f"[OK] Copied executable to release/")
+    print("[OK] Copied executable to release/")
     return True
 
 
@@ -115,7 +113,7 @@ def create_installer_zips(project_root):
     with zipfile.ZipFile(installer_dir / 'Definitions.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
         defs_dir = appdata / 'Definitions'
         if defs_dir.exists():
-            for root, dirs, files in os.walk(defs_dir):
+            for root, _, files in os.walk(defs_dir):
                 for file in files:
                     file_path = Path(root) / file
                     arcname = file_path.relative_to(defs_dir)
@@ -127,7 +125,7 @@ def create_installer_zips(project_root):
     with zipfile.ZipFile(installer_dir / 'mymodfiles.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
         mods_dir = appdata / 'mymodfiles'
         if mods_dir.exists():
-            for root, dirs, files in os.walk(mods_dir):
+            for root, _, files in os.walk(mods_dir):
                 root_path = Path(root)
                 # Skip large directories
                 if any(part in ['finalmod', 'jsonfiles'] for part in root_path.parts):
@@ -144,7 +142,7 @@ def create_installer_zips(project_root):
     with zipfile.ZipFile(installer_dir / 'utilities.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
         utils_dir = appdata / 'utilities'
         if utils_dir.exists():
-            for root, dirs, files in os.walk(utils_dir):
+            for root, _, files in os.walk(utils_dir):
                 for file in files:
                     file_path = Path(root) / file
                     arcname = file_path.relative_to(utils_dir)
@@ -176,7 +174,8 @@ def build_installer(project_root):
         result = subprocess.run(
             ["where", "iscc"],
             capture_output=True,
-            text=True
+            text=True,
+            check=False
         )
         if result.returncode == 0:
             iscc = result.stdout.strip().split('\n')[0]
@@ -194,6 +193,7 @@ def build_installer(project_root):
 
 
 def main():
+    """Main build process: build executable, sign, create installer zips, build & sign installer."""
     parser = argparse.ArgumentParser(description="Build release for Moria MOD Creator")
     parser.add_argument("--no-sign", action="store_true", help="Skip code signing")
     parser.add_argument("--no-installer", action="store_true", help="Skip installer build")
@@ -241,8 +241,8 @@ def main():
     print("\n" + "="*60)
     print("[OK] Build process complete!")
     print("="*60)
-    print(f"\nRelease files:")
-    print(f"  - release/MoriaMODCreator.exe")
+    print("\nRelease files:")
+    print("  - release/MoriaMODCreator.exe")
     if (project_root / "release").glob("*.exe"):
         for f in (project_root / "release").glob("*.exe"):
             if f.name.startswith("MoriaMODCreator_Setup"):

@@ -18,8 +18,8 @@ def sign_file(file_path: Path) -> bool:
         True if signing succeeded, False otherwise.
     """
     # Import local signing configuration from project root
-    project_root = Path(__file__).parent.parent
-    sys.path.insert(0, str(project_root))
+    proj_root = Path(__file__).parent.parent
+    sys.path.insert(0, str(proj_root))
 
     try:
         import sign_config
@@ -76,7 +76,8 @@ def sign_file(file_path: Path) -> bool:
             capture_output=True,
             text=True,
             shell=False,
-            timeout=120
+            timeout=120,
+            check=False
         )
 
         if result.returncode == 0:
@@ -84,17 +85,17 @@ def sign_file(file_path: Path) -> bool:
             if result.stdout:
                 print(result.stdout)
             return True
-        else:
-            print(f"ERROR: Signing failed!")
-            if result.stderr:
-                print(result.stderr)
-            if result.stdout:
-                print(result.stdout)
-            return False
+
+        print("ERROR: Signing failed!")
+        if result.stderr:
+            print(result.stderr)
+        if result.stdout:
+            print(result.stdout)
+        return False
     except subprocess.TimeoutExpired:
         print("ERROR: Signing timed out (>120 seconds)")
         return False
-    except Exception as e:
+    except (OSError, ValueError) as e:
         print(f"ERROR: {e}")
         return False
 
