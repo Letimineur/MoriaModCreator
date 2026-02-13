@@ -29,7 +29,12 @@ from typing import Optional
 from PIL import Image
 import customtkinter as ctk
 
-from src.config import get_definitions_dir, get_output_dir, get_default_mymodfiles_dir
+from src.config import (
+    get_definitions_dir,
+    get_output_dir,
+    get_default_mymodfiles_dir,
+    get_prebuilt_modfiles_dir,
+)
 from src.constants import (
     TOOLBAR_ICON_SIZE,
     TITLE_ICON_SIZE,
@@ -44,7 +49,18 @@ from src.ui.about_dialog import show_about_dialog
 from src.ui.buildings_view import BuildingsView
 from src.ui.import_dialog import show_import_dialog
 from src.ui.mod_name_dialog import show_mod_name_dialog
-from src.ui.secrets_import_dialog import show_secrets_import_dialog
+from src.ui.secrets_import_dialog import (
+    show_secrets_import_dialog,
+    show_secrets_download_dialog,
+    get_secrets_source_dir,
+)
+from src.ui.combined_import_dialog import show_combined_import_dialog
+
+try:
+    from tkinterdnd2 import TkinterDnD
+    HAS_TKDND = True
+except ImportError:
+    HAS_TKDND = False
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +152,7 @@ class _ConfirmDefDeleteDialog(ctk.CTkToplevel):
 # =============================================================================
 
 
-class MainWindow(ctk.CTk):
+class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
     """
     Main application window for Moria MOD Creator.
 
@@ -170,6 +186,14 @@ class MainWindow(ctk.CTk):
         dictionaries. Creates the UI layout and loads persisted checkbox states.
         """
         super().__init__()
+
+        # Load tkdnd extension for drag-and-drop support
+        if HAS_TKDND:
+            try:
+                self.TkdndVersion = TkinterDnD._require(self)
+                logger.info("tkdnd loaded: %s", self.TkdndVersion)
+            except Exception as e:  # pylint: disable=broad-except
+                logger.warning("Failed to load tkdnd: %s", e)
 
         self.title("Moria MOD Creator")
         self.geometry("1024x768")
@@ -232,6 +256,10 @@ class MainWindow(ctk.CTk):
         self.definitions_view_frame = None
         self.buildings_btn = None
         self.secrets_btn = None
+        self.novice_view_frame = None
+        self.novice_mod_vars = {}  # {ini_stem: BooleanVar}
+        self.novice_mod_name_var = None
+        self.novice_select_all_var = None
 
         # Virtual scroll attributes
         self.virtual_display_data = []
@@ -377,11 +405,12 @@ class MainWindow(ctk.CTk):
         )
         self.buildings_btn.pack(side="left", padx=5)
 
-        # Separator
-        sep_label = ctk.CTkLabel(center_frame, text="|", text_color="gray50", font=ctk.CTkFont(size=20))
-        sep_label.pack(side="left", padx=10)
+        # Separator (Advanced mode only)
+        self.toolbar_sep = ctk.CTkLabel(
+            center_frame, text="|", text_color="gray50", font=ctk.CTkFont(size=20)
+        )
 
-        # Import Game Files button
+        # Import Game Files button (Advanced mode only)
         self.import_btn = ctk.CTkButton(
             center_frame,
             text="Import Game Files",
@@ -393,9 +422,8 @@ class MainWindow(ctk.CTk):
             corner_radius=8,
             command=self._run_import
         )
-        self.import_btn.pack(side="left", padx=5)
 
-        # Import Secrets button
+        # Import Secrets button (Advanced mode only)
         self.secrets_btn = ctk.CTkButton(
             center_frame,
             text="Import Secrets",
@@ -407,11 +435,40 @@ class MainWindow(ctk.CTk):
             corner_radius=8,
             command=self._run_secrets_import
         )
-        self.secrets_btn.pack(side="left", padx=5)
 
-        # RIGHT: Settings and Help buttons
+        # Combined Import button (Novice mode only)
+        self.combined_import_btn = ctk.CTkButton(
+            center_frame,
+            text="Import",
+            width=140,
+            height=40,
+            fg_color=("#2E7D32", "#1B5E20"),
+            hover_color=("#1B5E20", "#0D3610"),
+            font=ctk.CTkFont(size=13, weight="bold"),
+            corner_radius=8,
+            command=self._run_combined_import
+        )
+
+        # RIGHT: UI mode toggle, Settings and Help buttons
         right_frame = ctk.CTkFrame(header_frame, fg_color="transparent")
         right_frame.grid(row=0, column=2, sticky="e")
+
+        # UI mode toggle (Novice / Advanced) — default to Novice
+        self.ui_mode_var = ctk.StringVar(value="Novice")
+        self.ui_mode_toggle = ctk.CTkSegmentedButton(
+            right_frame,
+            values=["Novice", "Advanced"],
+            variable=self.ui_mode_var,
+            command=self._on_ui_mode_changed,
+            width=180,
+            height=32,
+            font=ctk.CTkFont(size=12, weight="bold"),
+            corner_radius=6,
+        )
+        self.ui_mode_toggle.pack(side="left", padx=(0, 10))
+
+        # Apply initial toolbar layout for the default mode
+        self._apply_toolbar_mode(self.ui_mode_var.get())
 
         self._create_toolbar_button(
             right_frame,
@@ -452,6 +509,14 @@ class MainWindow(ctk.CTk):
         self.main_content = ctk.CTkFrame(self.definitions_view_frame, fg_color="transparent")
         self.main_content.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
 
+        # === NOVICE VIEW (shown when mode is Novice) ===
+        self.novice_view_frame = ctk.CTkFrame(self.main_area, fg_color="transparent")
+        self.novice_view_frame.grid_columnconfigure(0, weight=1)
+        self.novice_view_frame.grid_columnconfigure(1, weight=3)
+        self.novice_view_frame.grid_rowconfigure(0, weight=1)
+        self._create_novice_pane(self.novice_view_frame)
+        # Don't grid yet - shown when mode switches to Novice
+
         # === BUILDINGS VIEW (hidden initially) ===
         self.buildings_view = BuildingsView(
             self.main_area,
@@ -459,6 +524,9 @@ class MainWindow(ctk.CTk):
             on_back=self._show_definitions_view
         )
         # Don't grid it yet - will be shown when Buildings button is clicked
+
+        # Apply initial view based on default mode
+        self._apply_view_mode(self.ui_mode_var.get())
 
     def _create_status_bar(self):
         """Create the status bar at the bottom of the window."""
@@ -594,6 +662,236 @@ class MainWindow(ctk.CTk):
 
         # Load definitions files
         self._refresh_definitions_list()
+
+    def _create_novice_pane(self, parent):
+        """Create the novice mode pane with prebuilt mod checkboxes."""
+        # Main frame with border
+        novice_frame = ctk.CTkFrame(parent)
+        novice_frame.grid(row=0, column=0, sticky="nsew")
+
+        # Header row with select-all checkbox and title
+        header_row = ctk.CTkFrame(novice_frame, fg_color="transparent")
+        header_row.pack(fill="x", pady=(10, 5), padx=10)
+
+        self.novice_select_all_var = ctk.BooleanVar(value=False)
+        novice_select_all_btn = ctk.CTkCheckBox(
+            header_row,
+            text="",
+            variable=self.novice_select_all_var,
+            width=20,
+            command=self._on_novice_select_all_toggle
+        )
+        novice_select_all_btn.pack(side="left")
+
+        title_label = ctk.CTkLabel(
+            header_row,
+            text="Prebuilt Mods",
+            font=ctk.CTkFont(size=14, weight="bold")
+        )
+        title_label.pack(side="left", padx=(5, 0))
+
+        # Scrollable frame for prebuilt mod list
+        self.novice_mod_list = ctk.CTkScrollableFrame(
+            novice_frame,
+            fg_color="transparent"
+        )
+        self.novice_mod_list.pack(fill="both", expand=True, padx=10, pady=(0, 10))
+
+        # Bottom section with mod name and build button
+        bottom_frame = ctk.CTkFrame(novice_frame, fg_color="transparent")
+        bottom_frame.pack(fill="x", padx=10, pady=(0, 10))
+
+        left_bottom = ctk.CTkFrame(bottom_frame, fg_color="transparent")
+        left_bottom.pack(side="left", fill="x", expand=True)
+
+        mod_name_btn = ctk.CTkButton(
+            left_bottom,
+            text="My Mod Name",
+            fg_color="#2196F3",
+            hover_color="#1976D2",
+            text_color="white",
+            font=ctk.CTkFont(weight="bold"),
+            width=120,
+            command=self._on_novice_mod_name_click
+        )
+        mod_name_btn.pack(side="left")
+
+        self.novice_mod_name_var = ctk.StringVar(value="")
+        novice_mod_name_entry = ctk.CTkEntry(
+            left_bottom,
+            textvariable=self.novice_mod_name_var,
+            width=120,
+            placeholder_text="No mod selected...",
+            state="disabled"
+        )
+        novice_mod_name_entry.pack(side="left", padx=(10, 0), fill="x", expand=True)
+
+        build_btn = ctk.CTkButton(
+            bottom_frame,
+            text="Build",
+            fg_color="#4CAF50",
+            hover_color="#388E3C",
+            text_color="white",
+            font=ctk.CTkFont(weight="bold"),
+            width=80,
+            command=self._on_novice_build_click
+        )
+        build_btn.pack(side="right")
+
+        # Populate the list
+        self._refresh_novice_mod_list()
+
+        # Right pane placeholder (blank)
+        self.novice_right_pane = ctk.CTkFrame(parent, fg_color="transparent")
+        self.novice_right_pane.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+
+    def _refresh_novice_mod_list(self):
+        """Populate the novice mod list from prebuilt modfiles directory."""
+        # Clear existing items
+        for widget in self.novice_mod_list.winfo_children():
+            widget.destroy()
+        self.novice_mod_vars.clear()
+
+        prebuilt_dir = get_prebuilt_modfiles_dir()
+        if not prebuilt_dir.exists():
+            label = ctk.CTkLabel(
+                self.novice_mod_list,
+                text="No prebuilt mods found.\nRun Import first.",
+                font=ctk.CTkFont(size=12),
+                text_color="gray",
+            )
+            label.pack(pady=20)
+            return
+
+        ini_files = sorted(prebuilt_dir.glob("*.ini"), key=lambda p: p.stem.lower())
+        if not ini_files:
+            label = ctk.CTkLabel(
+                self.novice_mod_list,
+                text="No prebuilt mods found.\nRun Import first.",
+                font=ctk.CTkFont(size=12),
+                text_color="gray",
+            )
+            label.pack(pady=20)
+            return
+
+        for ini_path in ini_files:
+            display_name = ini_path.stem
+            var = ctk.BooleanVar(value=False)
+            self.novice_mod_vars[display_name] = var
+
+            row = ctk.CTkFrame(self.novice_mod_list, fg_color="transparent")
+            row.pack(fill="x", pady=1)
+
+            cb = ctk.CTkCheckBox(
+                row,
+                text=display_name,
+                variable=var,
+                font=ctk.CTkFont(size=12),
+                command=self._on_novice_checkbox_toggle,
+            )
+            cb.pack(side="left", padx=5)
+
+    def _on_novice_select_all_toggle(self):
+        """Handle select-all toggle for novice mod list."""
+        state = self.novice_select_all_var.get()
+        for var in self.novice_mod_vars.values():
+            var.set(state)
+
+    def _on_novice_checkbox_toggle(self):
+        """Update the select-all checkbox state when individual items change."""
+        if not self.novice_mod_vars:
+            return
+        checked = sum(1 for v in self.novice_mod_vars.values() if v.get())
+        total = len(self.novice_mod_vars)
+        if checked == total:
+            self.novice_select_all_var.set(True)
+        else:
+            self.novice_select_all_var.set(False)
+
+    def _on_novice_mod_name_click(self):
+        """Handle My Mod Name button click in novice mode."""
+        current_name = self.novice_mod_name_var.get() if self.novice_mod_name_var else ''
+        result = show_mod_name_dialog(self, current_name)
+        if result:
+            self.novice_mod_name_var.set(result)
+            self.set_status_message(f"Mod '{result}' selected")
+
+    def _on_novice_build_click(self):
+        """Handle Build click in novice mode — merge selected prebuilt INIs and build."""
+        mod_name = self.novice_mod_name_var.get().strip() if self.novice_mod_name_var else ""
+        if not mod_name:
+            self.set_status_message("Please enter a mod name", is_error=True)
+            return
+
+        # Collect selected prebuilt INI files
+        prebuilt_dir = get_prebuilt_modfiles_dir()
+        selected_inis = []
+        for stem, var in self.novice_mod_vars.items():
+            if var.get():
+                ini_path = prebuilt_dir / f"{stem}.ini"
+                if ini_path.exists():
+                    selected_inis.append(ini_path)
+
+        if not selected_inis:
+            self.set_status_message("No prebuilt mods selected for build", is_error=True)
+            return
+
+        # Merge paths from all selected INI files and determine include_secrets
+        merged_paths = set()
+        include_secrets = False
+
+        for ini_path in selected_inis:
+            config = configparser.ConfigParser()
+            config.optionxform = str
+            try:
+                config.read(ini_path, encoding='utf-8')
+                if 'Paths' in config:
+                    for key, value in config['Paths'].items():
+                        if value.lower() == 'true':
+                            path_str = key.replace('|', '\\').replace('~', ':')
+                            path = Path(path_str)
+                            if path.suffix.lower() == '.def' and path.exists():
+                                merged_paths.add(path)
+                if 'Settings' in config:
+                    if config['Settings'].get('include_secrets', 'False').lower() == 'true':
+                        include_secrets = True
+            except (OSError, configparser.Error) as e:
+                logger.warning("Error reading prebuilt INI %s: %s", ini_path.name, e)
+
+        if not merged_paths:
+            self.set_status_message("No valid definition files in selected mods", is_error=True)
+            return
+
+        selected = list(merged_paths)
+        logger.info(
+            "Novice build: %d mods selected, %d definitions, include_secrets=%s",
+            len(selected_inis), len(selected), include_secrets
+        )
+
+        # Build
+        self._show_build_progress()
+        try:
+            def progress_callback(message: str, progress: float):
+                self._update_build_progress(message, progress)
+                self.update()
+
+            build_manager = BuildManager(progress_callback=progress_callback)
+            success, message = build_manager.build(
+                mod_name, selected, include_secrets=include_secrets
+            )
+
+            self._hide_build_progress()
+
+            if success:
+                self.set_status_message(f"Build complete! {message}")
+            else:
+                self.set_status_message("Build failed", is_error=True)
+                self._show_build_error(message)
+
+        except (OSError, RuntimeError) as e:
+            logger.exception("Novice build failed with exception")
+            self._hide_build_progress()
+            self.set_status_message(f"Build failed: {e}", is_error=True)
 
     def _refresh_definitions_list(self, target_dir: Optional[Path] = None):
         """Refresh the list of definition files and directories.
@@ -777,6 +1075,26 @@ class MainWindow(ctk.CTk):
     # are stored per-mod in the mod's directory.
     # =========================================================================
 
+    def _set_checkbox_state(self, path_str: str, value: bool):
+        """Set a checkbox state, removing any case-variant duplicate keys.
+
+        configparser lowercases all keys by default, so previously-saved
+        paths may be stored in lowercase.  When updating from the UI
+        (which uses the filesystem's original case) we must remove the
+        stale lowercase duplicate so that only one entry per logical
+        path exists in the dict.
+
+        Args:
+            path_str: The path string (original case from the filesystem).
+            value: Whether the checkbox is checked.
+        """
+        path_lower = path_str.lower()
+        stale_keys = [k for k in self._checkbox_states
+                      if k.lower() == path_lower and k != path_str]
+        for k in stale_keys:
+            del self._checkbox_states[k]
+        self._checkbox_states[path_str] = value
+
     def _get_checkbox_ini_path(self) -> Path:
         """
         Get the path to the checkbox states INI file.
@@ -820,7 +1138,7 @@ class MainWindow(ctk.CTk):
         ini_path = self._get_checkbox_ini_path()
         if ini_path.exists():
             config = configparser.ConfigParser()
-            # config.optionxform = str  # Preserve case (removed, not supported)
+            config.optionxform = str  # Preserve case of path keys
             try:
                 config.read(ini_path, encoding='utf-8')
                 if 'Paths' in config:
@@ -845,12 +1163,12 @@ class MainWindow(ctk.CTk):
 
         ini_path = self._get_checkbox_ini_path()
         config = configparser.ConfigParser()
-        # config.optionxform = str  # Preserve case (removed, not supported)
+        config.optionxform = str  # Preserve case of path keys
         config['Paths'] = {}
 
         # First, update _checkbox_states with current UI state
         for path, var in self.definition_vars.items():
-            self._checkbox_states[str(path)] = var.get()
+            self._set_checkbox_state(str(path), var.get())
 
         # Save all checkbox states
         for path_str, is_checked in self._checkbox_states.items():
@@ -1072,8 +1390,8 @@ class MainWindow(ctk.CTk):
             return
 
         for item in dir_path.iterdir():
-            # Update the saved state
-            self._checkbox_states[str(item)] = checked
+            # Update the saved state (use helper to remove case-variant duplicates)
+            self._set_checkbox_state(str(item), checked)
 
             # If item is in current view, update its checkbox and highlight
             if item in self.definition_vars:
@@ -1090,8 +1408,8 @@ class MainWindow(ctk.CTk):
         Args:
             file_path: Path to the file that was toggled.
         """
-        # Update saved state
-        self._checkbox_states[str(file_path)] = self.definition_vars[file_path].get()
+        # Update saved state (use helper to remove case-variant duplicates)
+        self._set_checkbox_state(str(file_path), self.definition_vars[file_path].get())
 
         # Update row highlight
         self._update_definition_row_highlight(file_path)
@@ -3229,9 +3547,103 @@ class MainWindow(ctk.CTk):
         """Run the retoc import and JSON conversion process."""
         show_import_dialog(self)
 
+    def _has_secrets_zip(self) -> bool:
+        """Check if any non-GitHub ZIP files exist in Secrets Source."""
+        secrets_dir = get_secrets_source_dir()
+        if not secrets_dir.exists():
+            return False
+        from src.ui.secrets_import_dialog import GITHUB_ZIP_FILENAME  # pylint: disable=import-outside-toplevel
+        return any(
+            z.name != GITHUB_ZIP_FILENAME
+            for z in secrets_dir.glob("*.zip")
+        )
+
+    def _update_secrets_btn_state(self):
+        """Enable or disable the Import Secrets button based on ZIP availability."""
+        if self._has_secrets_zip():
+            self.secrets_btn.configure(
+                state="normal",
+                fg_color=("#F57C00", "#E65100"),
+            )
+        else:
+            self.secrets_btn.configure(
+                state="normal",
+                fg_color=("gray60", "gray40"),
+            )
+
     def _run_secrets_import(self):
-        """Run the Secrets Source import process."""
+        """Run the Secrets Source import process or show download prompt."""
+        if not self._has_secrets_zip():
+            show_secrets_download_dialog(self, on_file_added=self._update_secrets_btn_state)
+            # After download dialog closes, auto-proceed if ZIP now exists
+            if not self._has_secrets_zip():
+                return
         show_secrets_import_dialog(self)
+        self._update_secrets_btn_state()
+
+    def _on_ui_mode_changed(self, mode: str):
+        """Handle UI mode toggle between Novice and Advanced.
+
+        Args:
+            mode: The selected mode ("Novice" or "Advanced").
+        """
+        logger.info("UI mode changed to: %s", mode)
+        self._apply_toolbar_mode(mode)
+        self._apply_view_mode(mode)
+
+    def _apply_view_mode(self, mode: str):
+        """Switch between novice and advanced view panes.
+
+        Args:
+            mode: "Novice" or "Advanced".
+        """
+        if mode == "Novice":
+            # Hide advanced definitions view
+            if self.definitions_view_frame:
+                self.definitions_view_frame.grid_forget()
+            # Hide buildings view if showing
+            if self.buildings_view:
+                self.buildings_view.grid_forget()
+            # Show novice view
+            if self.novice_view_frame:
+                self.novice_view_frame.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        else:
+            # Hide novice view
+            if self.novice_view_frame:
+                self.novice_view_frame.grid_forget()
+            # Show definitions view (unless in buildings view)
+            if self.current_view == "buildings":
+                if self.buildings_view:
+                    self.buildings_view.grid(row=0, column=0, columnspan=2, sticky="nsew")
+            else:
+                if self.definitions_view_frame:
+                    self.definitions_view_frame.grid(row=0, column=0, columnspan=2, sticky="nsew")
+
+    def _apply_toolbar_mode(self, mode: str):
+        """Show/hide toolbar buttons based on the selected UI mode.
+
+        Args:
+            mode: "Novice" or "Advanced".
+        """
+        if mode == "Novice":
+            # Hide advanced buttons
+            self.toolbar_sep.pack_forget()
+            self.import_btn.pack_forget()
+            self.secrets_btn.pack_forget()
+            # Show combined import button
+            self.combined_import_btn.pack(side="left", padx=5)
+        else:
+            # Hide novice button
+            self.combined_import_btn.pack_forget()
+            # Show advanced buttons
+            self.toolbar_sep.pack(side="left", padx=10)
+            self.import_btn.pack(side="left", padx=5)
+            self.secrets_btn.pack(side="left", padx=5)
+            self._update_secrets_btn_state()
+
+    def _run_combined_import(self):
+        """Run the combined import process (Novice mode)."""
+        show_combined_import_dialog(self, on_secrets_btn_update=self._update_secrets_btn_state)
 
     def _open_settings(self):
         """Open the settings/configuration dialog."""
@@ -3357,9 +3769,11 @@ class MainWindow(ctk.CTk):
 
         self.current_view = "buildings"
 
-        # Hide definitions view
+        # Hide definitions view and novice view
         if self.definitions_view_frame:
             self.definitions_view_frame.grid_forget()
+        if self.novice_view_frame:
+            self.novice_view_frame.grid_forget()
 
         # Show buildings view
         if self.buildings_view:
@@ -3377,13 +3791,20 @@ class MainWindow(ctk.CTk):
         """Switch back to the Mod Builder view."""
         self.current_view = "definitions"
 
-        # Hide buildings view
+        # Hide buildings view and novice view
         if self.buildings_view:
             self.buildings_view.grid_forget()
+        if self.novice_view_frame:
+            self.novice_view_frame.grid_forget()
 
-        # Show definitions view
-        if self.definitions_view_frame:
-            self.definitions_view_frame.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        # Show the appropriate view based on UI mode
+        mode = self.ui_mode_var.get() if self.ui_mode_var else "Advanced"
+        if mode == "Novice":
+            if self.novice_view_frame:
+                self.novice_view_frame.grid(row=0, column=0, columnspan=2, sticky="nsew")
+        else:
+            if self.definitions_view_frame:
+                self.definitions_view_frame.grid(row=0, column=0, columnspan=2, sticky="nsew")
 
         # Update button appearances - Mod Builder active, Constructions inactive
         if self.mod_builder_btn:

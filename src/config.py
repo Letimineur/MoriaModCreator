@@ -44,6 +44,11 @@ def get_default_mymodfiles_dir() -> Path:
     return get_appdata_dir() / 'mymodfiles'
 
 
+def get_prebuilt_modfiles_dir() -> Path:
+    """Get the prebuilt modfiles directory for novice mode."""
+    return get_appdata_dir() / 'prebuilt modfiles'
+
+
 def get_default_definitions_dir() -> Path:
     """Get the default MOD Definitions directory."""
     return get_appdata_dir() / 'definitions'
