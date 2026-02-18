@@ -41,6 +41,10 @@ _ul
 _ul-*
 release/
 
+# Logs
+*.log
+logs/
+
 # Code signing credentials (NEVER commit this!)
 sign_config.py
 *.pfx
