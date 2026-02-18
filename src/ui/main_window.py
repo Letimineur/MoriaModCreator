@@ -260,6 +260,12 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
         self.novice_mod_vars = {}  # {ini_stem: BooleanVar}
         self.novice_mod_name_var = None
         self.novice_select_all_var = None
+        self.novice_last_clicked_mod = None
+        self.novice_info_title = None
+        self.novice_info_authors = None
+        self.novice_info_sep = None
+        self.novice_info_html = None
+        self.novice_info_placeholder = None
 
         # Virtual scroll attributes
         self.virtual_display_data = []
@@ -741,9 +747,49 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
         # Populate the list
         self._refresh_novice_mod_list()
 
-        # Right pane placeholder (blank)
-        self.novice_right_pane = ctk.CTkFrame(parent, fg_color="transparent")
+        # Right pane for mod info display
+        self.novice_right_pane = ctk.CTkFrame(parent)
         self.novice_right_pane.grid(row=0, column=1, sticky="nsew", padx=(10, 0))
+
+        # Title (large)
+        self.novice_info_title = ctk.CTkLabel(
+            self.novice_right_pane,
+            text="",
+            font=ctk.CTkFont(size=40, weight="bold"),
+            anchor="w"
+        )
+
+        # Authors (medium, gray)
+        self.novice_info_authors = ctk.CTkLabel(
+            self.novice_right_pane,
+            text="",
+            font=ctk.CTkFont(size=26),
+            text_color="gray60",
+            anchor="w"
+        )
+
+        # Separator line
+        self.novice_info_sep = ctk.CTkFrame(
+            self.novice_right_pane, height=2, fg_color="gray50"
+        )
+
+        # Description pane (HTML rendered via tkhtmlview)
+        from tkhtmlview import HTMLScrolledText  # pylint: disable=import-outside-toplevel
+        self.novice_info_html = HTMLScrolledText(
+            self.novice_right_pane,
+            state="disabled",
+            background="#2b2b2b",
+            foreground="#dce4ee",
+        )
+
+        # Placeholder message (shown when no mod is selected)
+        self.novice_info_placeholder = ctk.CTkLabel(
+            self.novice_right_pane,
+            text="Select a mod to view its description",
+            font=ctk.CTkFont(size=26),
+            text_color="gray50"
+        )
+        self.novice_info_placeholder.place(relx=0.5, rely=0.5, anchor="center")
 
     def _refresh_novice_mod_list(self):
         """Populate the novice mod list from prebuilt modfiles directory."""
@@ -787,7 +833,7 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
                 text=display_name,
                 variable=var,
                 font=ctk.CTkFont(size=12),
-                command=self._on_novice_checkbox_toggle,
+                command=lambda name=display_name: self._on_novice_checkbox_toggle(name),
             )
             cb.pack(side="left", padx=5)
 
@@ -796,9 +842,11 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
         state = self.novice_select_all_var.get()
         for var in self.novice_mod_vars.values():
             var.set(state)
+        if not state:
+            self._clear_novice_mod_info()
 
-    def _on_novice_checkbox_toggle(self):
-        """Update the select-all checkbox state when individual items change."""
+    def _on_novice_checkbox_toggle(self, mod_stem: str = ""):
+        """Update the select-all checkbox state and show mod info."""
         if not self.novice_mod_vars:
             return
         checked = sum(1 for v in self.novice_mod_vars.values() if v.get())
@@ -807,6 +855,88 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
             self.novice_select_all_var.set(True)
         else:
             self.novice_select_all_var.set(False)
+
+        # Show info for the most recently clicked mod (if checked ON)
+        if mod_stem and self.novice_mod_vars.get(mod_stem, ctk.BooleanVar()).get():
+            self.novice_last_clicked_mod = mod_stem
+            self._update_novice_mod_info(mod_stem)
+        elif mod_stem and self.novice_last_clicked_mod == mod_stem:
+            # Unchecked the currently displayed mod
+            self._clear_novice_mod_info()
+
+    def _update_novice_mod_info(self, mod_stem: str):
+        """Read mod INI and display metadata in the right pane."""
+        prebuilt_dir = get_prebuilt_modfiles_dir()
+        ini_path = prebuilt_dir / f"{mod_stem}.ini"
+
+        if not ini_path.exists():
+            self._show_no_description(mod_stem)
+            return
+
+        config = configparser.ConfigParser()
+        config.optionxform = str
+        try:
+            config.read(ini_path, encoding='utf-8')
+        except configparser.Error:
+            self._show_no_description(mod_stem)
+            return
+
+        if not config.has_section('ModInfo'):
+            self._show_no_description(mod_stem)
+            return
+
+        title = config.get('ModInfo', 'Title', raw=True, fallback=mod_stem)
+        authors = config.get('ModInfo', 'Authors', raw=True, fallback='')
+        description = config.get('ModInfo', 'Description', raw=True, fallback='')
+
+        # Show info widgets, hide placeholder
+        if self.novice_info_placeholder:
+            self.novice_info_placeholder.place_forget()
+        self.novice_info_title.pack(fill="x", padx=15, pady=(15, 5))
+        self.novice_info_authors.pack(fill="x", padx=15, pady=(0, 5))
+        self.novice_info_sep.pack(fill="x", padx=15, pady=5)
+        self.novice_info_html.pack(fill="both", expand=True, padx=15, pady=(5, 15))
+
+        # Update title and authors
+        self.novice_info_title.configure(text=title)
+        authors_text = f"by {authors}" if authors else ""
+        self.novice_info_authors.configure(text=authors_text)
+
+        # Render description HTML with dark-mode styling
+        if description.strip():
+            styled_html = (
+                '<div style="color: #dce4ee; font-size: 26px;">'
+                f'{description.strip()}'
+                '</div>'
+            )
+            self.novice_info_html.set_html(styled_html)
+        else:
+            self.novice_info_html.set_html(
+                '<p style="color: #dce4ee; font-size: 26px;">No description available.</p>'
+            )
+
+    def _show_no_description(self, mod_stem: str = ""):
+        """Show fallback info when [ModInfo] section is missing."""
+        if self.novice_info_placeholder:
+            self.novice_info_placeholder.place_forget()
+        self.novice_info_title.pack(fill="x", padx=15, pady=(15, 5))
+        self.novice_info_title.configure(text=mod_stem)
+        self.novice_info_authors.pack_forget()
+        self.novice_info_sep.pack(fill="x", padx=15, pady=5)
+        self.novice_info_html.pack(fill="both", expand=True, padx=15, pady=(5, 15))
+        self.novice_info_html.set_html(
+            '<p style="color: #dce4ee; font-size: 26px;">No description available.</p>'
+        )
+
+    def _clear_novice_mod_info(self):
+        """Clear the right pane and show the placeholder."""
+        self.novice_last_clicked_mod = None
+        self.novice_info_title.pack_forget()
+        self.novice_info_authors.pack_forget()
+        self.novice_info_sep.pack_forget()
+        self.novice_info_html.pack_forget()
+        if self.novice_info_placeholder:
+            self.novice_info_placeholder.place(relx=0.5, rely=0.5, anchor="center")
 
     def _on_novice_mod_name_click(self):
         """Handle My Mod Name button click in novice mode."""
