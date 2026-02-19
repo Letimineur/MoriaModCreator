@@ -120,8 +120,29 @@ def create_installer_zips(project_root):
                     zf.write(file_path, arcname)
             print(f"    Added {len(zf.namelist())} files")
 
-    # Note: mymodfiles, changesecrets, and output are created
-    # as empty directories by the installer — no files are packaged for them.
+    # changeconstructions.zip (prefix dirs with .ini and .def files)
+    print("  - changeconstructions.zip...")
+    with zipfile.ZipFile(installer_dir / 'changeconstructions.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
+        cc_dir = appdata / 'changeconstructions'
+        if cc_dir.exists():
+            for root, _, files in os.walk(cc_dir):
+                for file in files:
+                    file_path = Path(root) / file
+                    arcname = file_path.relative_to(cc_dir)
+                    zf.write(file_path, arcname)
+            print(f"    Added {len(zf.namelist())} files")
+
+    # changesecrets.zip (prefix dirs with .ini and .def files)
+    print("  - changesecrets.zip...")
+    with zipfile.ZipFile(installer_dir / 'changesecrets.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
+        cs_dir = appdata / 'changesecrets'
+        if cs_dir.exists():
+            for root, _, files in os.walk(cs_dir):
+                for file in files:
+                    file_path = Path(root) / file
+                    arcname = file_path.relative_to(cs_dir)
+                    zf.write(file_path, arcname)
+            print(f"    Added {len(zf.namelist())} files")
 
     # prebuilt_modfiles.zip (novice mode INI files)
     print("  - prebuilt_modfiles.zip...")
@@ -173,7 +194,8 @@ def create_installer_zips(project_root):
     dist_dir = project_root / 'dist'
     dist_dir.mkdir(exist_ok=True)
     zip_names = [
-        'Definitions.zip', 'prebuilt_modfiles.zip', 'SecretsSource.zip',
+        'Definitions.zip', 'changeconstructions.zip', 'changesecrets.zip',
+        'prebuilt_modfiles.zip', 'SecretsSource.zip',
         'NewObjects.zip', 'utilities.zip'
     ]
     for name in zip_names:
@@ -193,6 +215,7 @@ def build_installer(project_root):
     iscc_paths = [
         "C:/Program Files (x86)/Inno Setup 6/ISCC.exe",
         "C:/Program Files/Inno Setup 6/ISCC.exe",
+        str(Path.home() / "AppData/Local/Programs/Inno Setup 6/ISCC.exe"),
     ]
 
     iscc = None

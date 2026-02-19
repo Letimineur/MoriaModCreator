@@ -51,8 +51,9 @@ Source: "Definitions.zip"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterins
 Source: "prebuilt_modfiles.zip"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
 Source: "SecretsSource.zip"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
 Source: "NewObjects.zip"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
+Source: "changeconstructions.zip"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
+Source: "changesecrets.zip"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
 Source: "utilities.zip"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinstall
-; Note: mymodfiles, changesecrets, output are empty dirs only (no zips)
 
 [Dirs]
 ; Create AppData directory structure
@@ -84,6 +85,8 @@ Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Com
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Expand-Archive -Path '{tmp}\prebuilt_modfiles.zip' -DestinationPath '{userappdata}\MoriaMODCreator\prebuilt modfiles' -Force"""; Flags: runhidden waituntilterminated; StatusMsg: "Extracting prebuilt mods..."
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Expand-Archive -Path '{tmp}\SecretsSource.zip' -DestinationPath '{userappdata}\MoriaMODCreator\Secrets Source' -Force"""; Flags: runhidden waituntilterminated; StatusMsg: "Extracting secrets source..."
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Expand-Archive -Path '{tmp}\NewObjects.zip' -DestinationPath '{userappdata}\MoriaMODCreator\New Objects' -Force"""; Flags: runhidden waituntilterminated; StatusMsg: "Extracting new objects..."
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Expand-Archive -Path '{tmp}\changeconstructions.zip' -DestinationPath '{userappdata}\MoriaMODCreator\changeconstructions' -Force"""; Flags: runhidden waituntilterminated; StatusMsg: "Extracting constructions data..."
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Expand-Archive -Path '{tmp}\changesecrets.zip' -DestinationPath '{userappdata}\MoriaMODCreator\changesecrets' -Force"""; Flags: runhidden waituntilterminated; StatusMsg: "Extracting secrets data..."
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Command ""Expand-Archive -Path '{tmp}\utilities.zip' -DestinationPath '{userappdata}\MoriaMODCreator\utilities' -Force"""; Flags: runhidden waituntilterminated; StatusMsg: "Extracting utilities..."
 ; Launch application
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
