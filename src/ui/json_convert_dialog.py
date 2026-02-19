@@ -173,6 +173,7 @@ class JsonConvertDialog(ctk.CTkToplevel):
 
     def _start_conversion(self):
         """Start the conversion process in a background thread."""
+        logger.info("JSON conversion dialog opened, starting conversion")
         self.conversion_thread = threading.Thread(target=self._run_conversion, daemon=True)
         self.conversion_thread.start()
         self._check_queue()
@@ -211,6 +212,7 @@ class JsonConvertDialog(ctk.CTkToplevel):
             uassetgui_path = find_utility(utilities_dir, "UAssetGUI.exe")
 
             if not uassetgui_path:
+                logger.error("UAssetGUI.exe not found in utilities directory")
                 self.update_queue.put(("error", "UAssetGUI.exe not found!"))
                 self.update_queue.put(("done", False))
                 return
@@ -220,12 +222,14 @@ class JsonConvertDialog(ctk.CTkToplevel):
             files = get_files_to_convert()
 
             if not files:
+                logger.warning("No uasset files found to convert")
                 self.update_queue.put(("status", "No files to convert"))
                 self.update_queue.put(("done", True))
                 return
 
             total_files = len(files)
             max_workers = get_max_workers()
+            logger.info("Found %d files to convert using %d workers", total_files, max_workers)
             self.update_queue.put(
                 ("status", f"Converting {total_files} files using {max_workers} parallel processes...")
             )
@@ -280,26 +284,33 @@ class JsonConvertDialog(ctk.CTkToplevel):
 
             # Done with file conversion
             if failed > 0:
+                logger.warning("Conversion completed with %d failures out of %d files", failed, total_files)
                 self.update_queue.put(("status", f"Completed with {failed} failures"))
             else:
+                logger.info("Conversion complete: all %d files converted successfully", total_files)
                 self.update_queue.put(("status", "Conversion complete!"))
 
             # Update buildings INI cache from the converted JSON
+            logger.info("Updating buildings INI cache")
             self.update_queue.put(("status", "Updating buildings cache..."))
             ini_success, ini_message = update_buildings_ini_from_json()
             if ini_success:
+                logger.info("Buildings cache updated: %s", ini_message)
                 self.update_queue.put(("status", f"Done! {ini_message}"))
             else:
                 logger.warning("Buildings INI update: %s", ini_message)
 
+            logger.info("JSON conversion process completed")
             self.update_queue.put(("done", True))
 
         except OSError as e:
+            logger.exception("JSON conversion failed with error")
             self.update_queue.put(("error", f"Error: {str(e)}"))
             self.update_queue.put(("done", False))
 
     def _on_cancel(self):
         """Handle cancel button click."""
+        logger.info("JSON conversion cancelled by user")
         self.cancelled = True
         self.result = False
         self.destroy()

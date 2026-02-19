@@ -133,10 +133,21 @@ def convert_json_path_to_uasset(json_path: str) -> str:
     return normalized
 
 
+# String table files that must always be imported — these contain display names
+# for weapons, armor, tools, constructions, and interactables but lack the ST_
+# prefix so they can be missed by wildcard-based approaches.
+ALWAYS_IMPORT_FILES = [
+    r"\Moria\Content\Tech\Data\StringTables\Architecture.json",
+    r"\Moria\Content\Tech\Data\StringTables\Interactables.json",
+    r"\Moria\Content\Tech\Data\StringTables\Items.json",
+]
+
+
 def get_game_file_paths_to_import() -> list[str]:
     """Get the list of game file paths that need to be imported.
 
-    Scans all .def files and includes.xml, returns the corresponding .uasset paths.
+    Scans all .def files and includes.xml, adds always-import files,
+    and returns the corresponding .uasset paths.
 
     Returns:
         List of unique .uasset file paths relative to game directory
@@ -147,6 +158,9 @@ def get_game_file_paths_to_import() -> list[str]:
     # Also get paths from includes.xml (these may or may not exist in game)
     includes_paths = scan_includes_xml_for_mod_paths()
     mod_paths.update(includes_paths)
+
+    # Always import critical string table files
+    mod_paths.update(ALWAYS_IMPORT_FILES)
 
     # Convert each .json path to .uasset
     uasset_paths = set()
@@ -311,6 +325,7 @@ class ImportDialog(ctk.CTkToplevel):
 
     def _start_import(self):
         """Start the import process in a background thread."""
+        logger.info("Import dialog opened, starting import process")
         self.import_thread = threading.Thread(target=self._run_import_and_convert, daemon=True)
         self.import_thread.start()
         self._check_queue()
@@ -353,6 +368,7 @@ class ImportDialog(ctk.CTkToplevel):
 
             # Check prerequisites
             if not game_path:
+                logger.error("Game install path not configured")
                 self.update_queue.put(("error", "Game install path not configured"))
                 self.update_queue.put(("done", False))
                 return
@@ -363,30 +379,36 @@ class ImportDialog(ctk.CTkToplevel):
             jsondata_output = get_jsondata_dir()
 
             if not retoc_exe.exists():
+                logger.error("retoc.exe not found at %s", retoc_exe)
                 self.update_queue.put(("error", "retoc.exe not found in utilities folder"))
                 self.update_queue.put(("done", False))
                 return
 
             if not uassetgui_exe.exists():
+                logger.error("UAssetGUI.exe not found at %s", uassetgui_exe)
                 self.update_queue.put(("error", "UAssetGUI.exe not found in utilities folder"))
                 self.update_queue.put(("done", False))
                 return
 
             paks_path = Path(game_path) / "Moria" / "Content" / "Paks"
             if not paks_path.exists():
+                logger.error("Paks directory not found at %s", paks_path)
                 self.update_queue.put(("error", f"Paks directory not found at {paks_path}"))
                 self.update_queue.put(("done", False))
                 return
 
             # ========== PHASE 1: SCAN .DEF FILES ==========
+            logger.info("Phase 1: Scanning .def files for required game files")
             self.update_queue.put(("status", "Scanning .def files for required game files..."))
             files_to_import = get_game_file_paths_to_import()
 
             if not files_to_import:
+                logger.warning("No files to import - no .def files found")
                 self.update_queue.put(("status", "No files to import - no .def files found"))
                 self.update_queue.put(("done", True))
                 return
 
+            logger.info("Found %d game files to import", len(files_to_import))
             self.update_queue.put(("status", f"Found {len(files_to_import)} game files to import"))
 
             if self.cancelled:
@@ -394,6 +416,7 @@ class ImportDialog(ctk.CTkToplevel):
                 return
 
             # ========== PHASE 2: CLEAR DIRECTORIES ==========
+            logger.info("Phase 2: Clearing output directories")
             self.update_queue.put(("status", "Clearing output directories..."))
 
             if retoc_output.exists():
@@ -409,6 +432,7 @@ class ImportDialog(ctk.CTkToplevel):
                 return
 
             # ========== PHASE 3: EXTRACT WITH RETOC ==========
+            logger.info("Phase 3: Extracting %d game files with retoc", len(files_to_import))
             self.update_queue.put(("title", "Extracting Game Files"))
             total_files = len(files_to_import)
             import_success = 0
@@ -448,10 +472,12 @@ class ImportDialog(ctk.CTkToplevel):
 
                 except subprocess.TimeoutExpired:
                     import_errors += 1
+                    logger.error("Timeout extracting %s", file_path)
                 except OSError as e:
                     import_errors += 1
                     logger.warning("Error extracting %s: %s", file_path, e)
 
+            logger.info("Phase 3 complete: %d extracted, %d errors", import_success, import_errors)
             self.update_queue.put(("progress", 1.0))
             self.update_queue.put(("status", f"Extracted {import_success} files ({import_errors} errors)"))
 
@@ -460,6 +486,7 @@ class ImportDialog(ctk.CTkToplevel):
                 return
 
             # ========== PHASE 4: CONVERT TO JSON ==========
+            logger.info("Phase 4: Converting extracted files to JSON")
             self.update_queue.put(("title", "Converting to JSON"))
             self.update_queue.put(("status", "Scanning for files to convert..."))
             self.update_queue.put(("progress", 0))
@@ -468,10 +495,12 @@ class ImportDialog(ctk.CTkToplevel):
             total_convert = len(uasset_files)
 
             if total_convert == 0:
+                logger.warning("No files found to convert after extraction")
                 self.update_queue.put(("status", "No files to convert"))
                 self.update_queue.put(("done", True))
                 return
 
+            logger.info("Converting %d files using %d workers", total_convert, max_workers)
             self.update_queue.put(("status", f"Converting {total_convert} files using {max_workers} workers..."))
 
             converted = 0
@@ -503,15 +532,21 @@ class ImportDialog(ctk.CTkToplevel):
                     self.update_queue.put(("progress", (converted + convert_errors) / total_convert))
                     self.update_queue.put(("count", f"Converted {converted} / {total_convert} ({convert_errors} errors)"))
 
+            logger.info("Phase 4 complete: %d converted, %d errors", converted, convert_errors)
+
             # ========== PHASE 5: UPDATE BUILDINGS CACHE ==========
+            logger.info("Phase 5: Updating buildings cache")
             self.update_queue.put(("status", "Updating buildings cache..."))
             ini_success, ini_message = update_buildings_ini_from_json()
 
             if ini_success:
+                logger.info("Buildings cache updated: %s", ini_message)
                 self.update_queue.put(("status", f"Complete! {converted} files converted. {ini_message}"))
             else:
+                logger.warning("Buildings cache update failed: %s", ini_message)
                 self.update_queue.put(("status", f"Complete! {converted} files converted."))
 
+            logger.info("Import process completed successfully")
             self.update_queue.put(("file", ""))
             self.update_queue.put(("progress", 1.0))
             self.update_queue.put(("done", True))
@@ -533,6 +568,7 @@ class ImportDialog(ctk.CTkToplevel):
 
     def _on_cancel(self):
         """Handle cancel button click."""
+        logger.info("Import cancelled by user")
         self.cancelled = True
         self.status_label.configure(text="Cancelling...")
 

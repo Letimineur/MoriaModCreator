@@ -347,6 +347,7 @@ def _scan_namemap_from_json(json_path: Path, collected: dict):
 
 def _load_cached_options(cache_path: Path) -> dict:
     """Load cached dropdown options from INI file."""
+    logger.debug("Loading cached options from %s", cache_path)
     options = {}
     if cache_path.exists():
         config = configparser.ConfigParser()
@@ -358,6 +359,7 @@ def _load_cached_options(cache_path: Path) -> dict:
 
 def _save_cached_options(cache_path: Path, options: dict):
     """Save dropdown options to INI file."""
+    logger.debug("Saving cached options to %s (%d categories)", cache_path, len(options))
     config = configparser.ConfigParser()
     for section, values in sorted(options.items()):
         config[section] = {"values": "|".join(sorted(values))}
@@ -373,6 +375,7 @@ def _scan_def_files_for_options(buildings_dir: Path) -> dict:
         - Enum_BuildProcess, Enum_PlacementType, etc.
         - UnlockRequiredItems, UnlockRequiredConstructions
     """
+    logger.debug("Scanning .def files for dropdown options in %s", buildings_dir)
     collected = defaultdict(set)
 
     for def_file in buildings_dir.glob("*.def"):
@@ -556,6 +559,7 @@ def parse_def_file(file_path: Path) -> dict:
             construction_json: Parsed JSON object for the construction row
             imports_json: Parsed JSON array for icon imports (or None)
     """
+    logger.debug("Parsing .def file: %s", file_path.name)
     tree = ET.parse(file_path)
     root = tree.getroot()
 
@@ -1733,6 +1737,7 @@ class _ChangeConstructionsDialog(ctk.CTkToplevel):
         confirm = _ConfirmConstructionsDeleteDialog(self, prefix_name)
         confirm.wait_window()
         if confirm.result:
+            logger.info("Deleting change constructions set: %s", prefix_name)
             prefix_dir = get_default_changeconstructions_dir() / prefix_name
             if prefix_dir.exists():
                 shutil.rmtree(prefix_dir)
@@ -1747,11 +1752,14 @@ class _ChangeConstructionsDialog(ctk.CTkToplevel):
     def _on_apply(self):
         prefix_name = self.prefix_var.get().strip()
         if not prefix_name:
+            logger.warning("Change Constructions apply: empty prefix name")
             self.prefix_entry.configure(border_color="red")
             return
 
         invalid_chars = '<>:"/\\|?*'
         if any(c in prefix_name for c in invalid_chars):
+            logger.warning("Change Constructions apply: invalid characters in prefix '%s'",
+                           prefix_name)
             self.prefix_entry.configure(border_color="red")
             return
 
@@ -1760,9 +1768,11 @@ class _ChangeConstructionsDialog(ctk.CTkToplevel):
         prefix_dir = constructions_dir / prefix_name
         try:
             prefix_dir.mkdir(parents=True, exist_ok=True)
+            logger.info("Created/selected change constructions prefix: %s", prefix_name)
             self.result = prefix_name
             self.destroy()
-        except OSError:
+        except OSError as e:
+            logger.error("Failed to create change set directory %s: %s", prefix_dir, e)
             self.prefix_entry.configure(border_color="red")
 
 
@@ -1886,6 +1896,7 @@ class ConstructionsView(ctk.CTkFrame):
         self.footer_save_btn = None
         self.footer_revert_btn = None
 
+        logger.debug("Initializing ConstructionsView")
         self._create_widgets()
         # Load persisted constructions prefix
         self._load_constructions_prefix()
@@ -1910,6 +1921,7 @@ class ConstructionsView(ctk.CTkFrame):
         found in existing .def files and the game's construction recipes JSON.
         These values are used to populate autocomplete dropdowns in the form.
         """
+        logger.debug("Starting scan and refresh of constructions data")
         buildings_dir = self._get_buildings_subdir()
         cache_path = buildings_dir / CACHE_FILENAME
 
@@ -1953,6 +1965,7 @@ class ConstructionsView(ctk.CTkFrame):
 
     def reset_view_state(self):
         """Reset the view to its initial state: clear selection and checkboxes."""
+        logger.debug("Resetting constructions view state")
         # Clear current selection
         self.current_def_path = None
         self.current_def_data = None
@@ -2346,6 +2359,8 @@ class ConstructionsView(ctk.CTkFrame):
         (not cache), writes those original rows back to cache, and unchecks
         the item in the left pane list.
         """
+        logger.info("Reverting changes for %s",
+                     self.current_def_path or self.current_secrets_recipe_name)
         if self.current_def_path:
             self._load_def_file(self.current_def_path)
         elif self.current_secrets_recipe_name:
@@ -2382,6 +2397,7 @@ class ConstructionsView(ctk.CTkFrame):
         Clears and rebuilds the file list, creating a row for each .def file
         with a checkbox and clickable label.
         """
+        logger.debug("Refreshing building definition list")
         # Clear existing items
         for widget in self.building_list.winfo_children():
             widget.destroy()
@@ -2495,6 +2511,7 @@ class ConstructionsView(ctk.CTkFrame):
 
     def _load_def_file(self, file_path: Path):
         """Load a .def file and display it in the form."""
+        logger.debug("Loading .def file: %s", file_path.name)
         try:
             self.current_def_data = parse_def_file(file_path)
             self.current_def_path = file_path
@@ -2544,6 +2561,7 @@ class ConstructionsView(ctk.CTkFrame):
 
     def _on_refresh_cache_click(self):
         """Handle Refresh button - delete cache and re-copy from game output."""
+        logger.info("Refresh cache requested by user")
         self._refresh_cache()
         self._set_status("Cache refreshed from game output")
 
@@ -2580,6 +2598,7 @@ class ConstructionsView(ctk.CTkFrame):
         if not self.current_construction_pack:
             return
 
+        logger.debug("Saving construction pack to INI: %s", self.current_construction_pack)
         pack_name = self.current_construction_pack
         pack_dir = get_constructions_dir() / pack_name
         pack_dir.mkdir(parents=True, exist_ok=True)
@@ -2600,6 +2619,7 @@ class ConstructionsView(ctk.CTkFrame):
 
     def _on_change_constructions_click(self):
         """Handle Change Constructions button click - open dialog to select/create prefix."""
+        logger.debug("Opening Change Constructions dialog")
         # Save current states before switching
         self._save_checked_states_to_ini()
 
@@ -2608,6 +2628,7 @@ class ConstructionsView(ctk.CTkFrame):
         dialog.wait_window()
 
         if dialog.result is not None:
+            logger.info("Change Constructions prefix set to: %s", dialog.result)
             self.constructions_prefix_var.set(dialog.result)
             # Persist the selected prefix
             self._save_constructions_prefix()
@@ -2616,6 +2637,7 @@ class ConstructionsView(ctk.CTkFrame):
 
     def _reload_current_view(self):
         """Reload the current view mode to reflect the active change set."""
+        logger.debug("Reloading current view: %s", self.view_mode)
         mode_loaders = {
             'buildings': self._load_secrets_buildings,
             'weapons': self._load_secrets_weapons,
@@ -2639,6 +2661,7 @@ class ConstructionsView(ctk.CTkFrame):
         self._save_checked_states_to_ini()
         saved_view_mode = self.view_mode
 
+        logger.info("Build started: generating MODIFY .def files from all checked items")
         self._set_status("Building definition files from all changes...")
 
         # Define the configuration for each mode
@@ -2745,6 +2768,7 @@ class ConstructionsView(ctk.CTkFrame):
         self.view_mode = saved_view_mode
 
         if not all_changes:
+            logger.info("Build: no changes found across any checked items")
             self._set_status("No changes found across any checked items")
             return
 
@@ -2804,6 +2828,8 @@ class ConstructionsView(ctk.CTkFrame):
             self._set_status(f"Build failed: {e}", is_error=True)
             return
 
+        logger.info("Build complete: %d .def file(s), %d total change(s)",
+                     files_created, total_changes)
         self._set_status(
             f"Build complete: {files_created} .def file(s), {total_changes} total change(s)"
         )
@@ -2817,6 +2843,7 @@ class ConstructionsView(ctk.CTkFrame):
         Returns:
             Dict mapping row name to row dict
         """
+        logger.debug("Loading table data from %s", json_path.name)
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
@@ -2992,6 +3019,7 @@ class ConstructionsView(ctk.CTkFrame):
             recipe_changes: List of (item, property, value) for recipes
             construction_changes: List of (item, property, value) for definitions
         """
+        logger.debug("Writing changes .def file: %s", output_file.name)
         # Determine file paths and description label based on view mode
         if self.view_mode == 'weapons':
             recipes_def_path = r'Moria\Content\Tech\Data\Items\DT_ItemRecipes.json'
@@ -3061,7 +3089,8 @@ class ConstructionsView(ctk.CTkFrame):
         try:
             with open(constructions_path, 'r', encoding='utf-8') as f:
                 data = json.load(f)
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError) as e:
+            logger.warning("Could not read imports from %s: %s", constructions_path.name, e)
             return []
 
         all_imports = data.get('Imports', [])
@@ -3196,6 +3225,7 @@ class ConstructionsView(ctk.CTkFrame):
 
     def _show_form(self):
         """Render the editable form, dispatching to per-type renderer."""
+        logger.debug("Rendering form for view_mode=%s", self.view_mode)
         # Hide placeholder and show form widgets
         self.placeholder_label.pack_forget()
 
@@ -4311,7 +4341,9 @@ class ConstructionsView(ctk.CTkFrame):
 
     def _save_changes(self):
         """Save form changes back to the cached JSON files."""
+        logger.info("Saving changes (view_mode=%s)", self.view_mode)
         if not self.current_def_data:
+            logger.warning("Save attempted with no data loaded")
             self._set_status("No data loaded to save", is_error=True)
             return
 
@@ -4362,6 +4394,7 @@ class ConstructionsView(ctk.CTkFrame):
                     saved_files.append("constructions")
 
             if saved_files:
+                logger.info("Save completed: %s", ", ".join(saved_files))
                 self._set_status(f"Saved changes to {', '.join(saved_files)}")
                 # Mark the checkbox for this item in the left pane
                 self._mark_item_checked_on_save()
@@ -4483,6 +4516,9 @@ class ConstructionsView(ctk.CTkFrame):
 
         # Toggle: if currently visible, make hidden; if hidden, make visible
         is_visible = self._header_eye_visible
+        logger.debug("Header eye toggle: %s -> %s",
+                      "visible" if is_visible else "hidden",
+                      "hidden" if is_visible else "visible")
         mode = self.view_mode or 'buildings'
 
         if is_visible:
@@ -4515,6 +4551,7 @@ class ConstructionsView(ctk.CTkFrame):
         name = self.current_secrets_recipe_name
         if not name:
             return
+        logger.debug("Restoring original visibility for %s", name)
 
         mode = self.view_mode or 'buildings'
         if mode in ('buildings', 'weapons', 'armor', 'tools', 'items'):
@@ -4561,6 +4598,9 @@ class ConstructionsView(ctk.CTkFrame):
         # Toggle bulk state
         self._bulk_eye_visible = not self._bulk_eye_visible
         make_hidden = not self._bulk_eye_visible
+        logger.info("Bulk eye toggle: %s all %d items",
+                     "hiding" if make_hidden else "showing",
+                     len(self.building_list_items))
 
         # Update bulk button icon
         visible_icon, hidden_icon, _ = self._get_eye_icons()
@@ -4605,6 +4645,8 @@ class ConstructionsView(ctk.CTkFrame):
 
     def _bulk_set_recipe_visibility(self, item_names, make_hidden):
         """Bulk-set recipe unlock types and EnabledState for all items."""
+        logger.debug("Bulk setting recipe visibility: %s for %d items",
+                      "hidden" if make_hidden else "visible", len(item_names))
         name_set = set(item_names)
 
         # Load originals from game output for restoring
@@ -4682,6 +4724,8 @@ class ConstructionsView(ctk.CTkFrame):
 
     def _bulk_set_definition_visibility(self, item_names, make_hidden):
         """Bulk-set EnabledState for all definition items. Writes JSON once."""
+        logger.debug("Bulk setting definition visibility: %s for %d items",
+                      "hidden" if make_hidden else "visible", len(item_names))
         defs_path = self._get_cache_constructions_path()
         if not defs_path or not defs_path.exists():
             return
@@ -4807,6 +4851,7 @@ class ConstructionsView(ctk.CTkFrame):
             row_name: Name of the row to replace
             updated_row: The updated row dict
         """
+        logger.debug("Updating row '%s' in %s", row_name, json_path.name)
         with open(json_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
 
@@ -5287,6 +5332,7 @@ class ConstructionsView(ctk.CTkFrame):
         2. Browse and select constructions to import
         3. Generate .def files for the selected constructions
         """
+        logger.info("Opening import construction dialog")
         from src.ui.import_construction_dialog import show_import_construction_dialog  # pylint: disable=import-outside-toplevel
 
         # Show the import dialog, passing a callback to refresh the list when done
@@ -5339,6 +5385,7 @@ class ConstructionsView(ctk.CTkFrame):
         Uses view_mode to determine the correct source files and cache directory.
         Only copies if cache files don't exist yet (use _refresh_cache to force).
         """
+        logger.debug("Ensuring cache files exist for view_mode=%s", self.view_mode)
         cache_dir = self._get_cache_dir()
         cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -5361,6 +5408,7 @@ class ConstructionsView(ctk.CTkFrame):
 
         Preserves .ini files (e.g. checked_items.ini) across refreshes.
         """
+        logger.info("Force-refreshing cache for view_mode=%s", self.view_mode)
         cache_dir = self._get_cache_dir()
 
         # Delete non-INI files from cache directory to start fresh
@@ -5395,11 +5443,13 @@ class ConstructionsView(ctk.CTkFrame):
                 prefix = config.get('ChangeConstructions', 'current_prefix', fallback='')
                 if hasattr(self, 'constructions_prefix_var'):
                     self.constructions_prefix_var.set(prefix)
-            except (configparser.Error, OSError):
-                pass
+                logger.debug("Loaded constructions prefix: '%s'", prefix)
+            except (configparser.Error, OSError) as e:
+                logger.warning("Failed to load constructions prefix: %s", e)
 
     def _save_constructions_prefix(self):
         """Save the current constructions prefix to changeconstructions config."""
+        logger.debug("Saving constructions prefix")
         constructions_dir = get_default_changeconstructions_dir()
         constructions_dir.mkdir(parents=True, exist_ok=True)
         config_file = constructions_dir / 'current_prefix.ini'
@@ -5416,6 +5466,7 @@ class ConstructionsView(ctk.CTkFrame):
 
     def _save_checked_states_to_ini(self):
         """Save current checkbox states to INI file in the cache folder."""
+        logger.debug("Saving checked states to INI")
         ini_path = self._get_checked_ini_path()
         config = configparser.ConfigParser()
         config.optionxform = str  # Preserve case
@@ -5903,6 +5954,7 @@ class ConstructionsView(ctk.CTkFrame):
         Shows items that exist in BOTH the game recipes and game constructions
         tables. All operations use cached copies of game output files.
         """
+        logger.debug("Switching to buildings view mode")
         self.view_mode = 'buildings'
         self._set_status("Loading game buildings...")
 
@@ -6229,6 +6281,7 @@ class ConstructionsView(ctk.CTkFrame):
 
         Shows items that have both a recipe and weapon definition entry.
         """
+        logger.debug("Switching to weapons view mode")
         self.view_mode = 'weapons'
         self._set_status("Loading game weapons...")
 
@@ -6261,6 +6314,7 @@ class ConstructionsView(ctk.CTkFrame):
 
         Shows items that have both a recipe and armor definition entry.
         """
+        logger.debug("Switching to armor view mode")
         self.view_mode = 'armor'
         self._set_status("Loading game armor...")
 
@@ -6290,6 +6344,7 @@ class ConstructionsView(ctk.CTkFrame):
 
     def _load_secrets_tools(self):
         """Load tool items from game data, showing all game items."""
+        logger.debug("Switching to tools view mode")
         self.view_mode = 'tools'
         self._set_status("Loading game tools...")
 
@@ -6316,6 +6371,7 @@ class ConstructionsView(ctk.CTkFrame):
 
     def _load_secrets_flora(self):
         """Load flora items from game data, showing all game items."""
+        logger.debug("Switching to flora view mode")
         self.view_mode = 'flora'
         self._set_status("Loading game flora...")
 
@@ -6339,6 +6395,7 @@ class ConstructionsView(ctk.CTkFrame):
 
     def _load_secrets_loot(self):
         """Load loot items from game data, showing all game items."""
+        logger.debug("Switching to loot view mode")
         self.view_mode = 'loot'
         self._set_status("Loading game loot...")
 
@@ -6362,6 +6419,7 @@ class ConstructionsView(ctk.CTkFrame):
 
     def _load_secrets_items(self):
         """Load items from game data, showing all game items."""
+        logger.debug("Switching to items view mode")
         self.view_mode = 'items'
         self._set_status("Loading game items...")
 
@@ -6392,6 +6450,7 @@ class ConstructionsView(ctk.CTkFrame):
         Args:
             recipes: Dict mapping recipe names to their data
         """
+        logger.debug("Populating secrets list with %d recipes", len(recipes))
         # Clear existing list
         for widget in self.building_list.winfo_children():
             widget.destroy()
@@ -6541,6 +6600,7 @@ class ConstructionsView(ctk.CTkFrame):
         Args:
             recipe_name: Name of the recipe to load
         """
+        logger.debug("Loading secrets recipe: %s (view_mode=%s)", recipe_name, self.view_mode)
         self.current_secrets_recipe_name = recipe_name
         self._highlight_secrets_item(recipe_name)
 
@@ -6674,6 +6734,7 @@ class ConstructionsView(ctk.CTkFrame):
 
     def _show_new_building_form(self):
         """Show form for creating a new building definition."""
+        logger.debug("Opening new building creation form")
         # Clear current selection
         self.current_def_path = None
         self.current_def_data = None
@@ -6814,18 +6875,22 @@ class ConstructionsView(ctk.CTkFrame):
 
     def _create_new_building(self):
         """Create a new .def file from the form data."""
+        logger.info("Creating new building definition")
         # Validate required fields
         building_name = self.form_vars.get("BuildingName", ctk.StringVar()).get().strip()
         display_name = self.form_vars.get("DisplayName", ctk.StringVar()).get().strip()
         actor_path = self.form_vars.get("Actor", ctk.StringVar()).get().strip()
 
         if not building_name:
+            logger.warning("New building validation failed: missing building name")
             self._set_status("Building Name is required", is_error=True)
             return
         if not display_name:
+            logger.warning("New building validation failed: missing display name")
             self._set_status("Display Name is required", is_error=True)
             return
         if not actor_path:
+            logger.warning("New building validation failed: missing actor path")
             self._set_status("Actor Path is required", is_error=True)
             return
 
@@ -6838,6 +6903,7 @@ class ConstructionsView(ctk.CTkFrame):
         new_file_path = buildings_dir / f"{safe_name}.def"
 
         if new_file_path.exists():
+            logger.warning("New building creation blocked: file already exists: %s.def", safe_name)
             self._set_status(f"File already exists: {safe_name}.def", is_error=True)
             return
 
@@ -6849,6 +6915,7 @@ class ConstructionsView(ctk.CTkFrame):
             with open(new_file_path, "w", encoding="utf-8") as f:
                 f.write(def_content)
 
+            logger.info("Created new building .def file: %s", new_file_path.name)
             self._set_status(f"Created: {safe_name}.def")
 
             # Refresh list and load the new file
@@ -6876,6 +6943,7 @@ class ConstructionsView(ctk.CTkFrame):
         Returns:
             Complete XML string with recipe and construction JSON embedded
         """
+        logger.debug("Generating .def file content for building: %s", building_name)
         title = self.form_vars.get("Title", ctk.StringVar()).get() or building_name
         author = self.form_vars.get("Author", ctk.StringVar()).get() or "Moria MOD Creator"
         description = self.form_vars.get("DefDescription", ctk.StringVar()).get() or ""

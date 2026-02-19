@@ -142,6 +142,7 @@ class CombinedImportDialog(ctk.CTkToplevel):
 
     def _start(self):
         """Kick off the background import thread."""
+        logger.info("Combined import dialog opened, starting combined import")
         thread = threading.Thread(target=self._run_combined, daemon=True)
         thread.start()
         self._check_queue()
@@ -185,12 +186,18 @@ class CombinedImportDialog(ctk.CTkToplevel):
         """Run game import then secrets import sequentially."""
         try:
             # ---------- PART 1: Import game files ----------
+            logger.info("Combined import: starting Part 1 - game file import")
             game_ok = self._part1_import_game_files()
             if self.cancelled or not game_ok:
+                if self.cancelled:
+                    logger.info("Combined import cancelled during game file import")
+                else:
+                    logger.error("Combined import: game file import failed")
                 self.update_queue.put(("done", False))
                 return
 
             # ---------- PART 2: Import secrets ----------
+            logger.info("Combined import: starting Part 2 - secrets import")
             self._part2_import_secrets()
 
         except OSError as e:
@@ -214,6 +221,7 @@ class CombinedImportDialog(ctk.CTkToplevel):
 
         # --- prerequisites ---
         if not game_path:
+            logger.error("Game install path not configured")
             q.put(("error", "Game install path not configured"))
             return False
 
@@ -223,30 +231,37 @@ class CombinedImportDialog(ctk.CTkToplevel):
         jsondata_output = get_jsondata_dir()
 
         if not retoc_exe.exists():
+            logger.error("retoc.exe not found at %s", retoc_exe)
             q.put(("error", "retoc.exe not found in utilities folder"))
             return False
         if not uassetgui_exe.exists():
+            logger.error("UAssetGUI.exe not found at %s", uassetgui_exe)
             q.put(("error", "UAssetGUI.exe not found in utilities folder"))
             return False
 
         paks_path = Path(game_path) / "Moria" / "Content" / "Paks"
         if not paks_path.exists():
+            logger.error("Paks directory not found at %s", paks_path)
             q.put(("error", f"Paks directory not found at {paks_path}"))
             return False
 
         # --- Phase 1: scan ---
+        logger.info("Part 1 Phase 1: Scanning .def files for required game files")
         q.put(("title", "Importing Game Files"))
         q.put(("status", "Scanning .def files for required game files..."))
         files_to_import = get_game_file_paths_to_import()
         if not files_to_import:
+            logger.warning("No files to import - no .def files found")
             q.put(("status", "No files to import"))
             return True
 
+        logger.info("Found %d game files to import", len(files_to_import))
         q.put(("status", f"Found {len(files_to_import)} game files to import"))
         if self.cancelled:
             return False
 
         # --- Phase 2: clear ---
+        logger.info("Part 1 Phase 2: Clearing output directories")
         q.put(("status", "Clearing output directories..."))
         if retoc_output.exists():
             shutil.rmtree(retoc_output, ignore_errors=True)
@@ -258,6 +273,7 @@ class CombinedImportDialog(ctk.CTkToplevel):
             return False
 
         # --- Phase 3: extract ---
+        logger.info("Part 1 Phase 3: Extracting %d game files with retoc", len(files_to_import))
         q.put(("title", "Extracting Game Files"))
         total = len(files_to_import)
         ok_count = 0
@@ -296,12 +312,14 @@ class CombinedImportDialog(ctk.CTkToplevel):
             except (subprocess.TimeoutExpired, OSError) as e:
                 logger.warning("Extract error %s: %s", fp, e)
 
+        logger.info("Part 1 Phase 3 complete: %d of %d extracted", ok_count, total)
         q.put(("progress", 1.0))
         q.put(("status", f"Extracted {ok_count} of {total} files"))
         if self.cancelled:
             return False
 
         # --- Phase 4: convert ---
+        logger.info("Part 1 Phase 4: Converting extracted files to JSON")
         q.put(("title", "Converting to JSON"))
         q.put(("status", "Scanning for files to convert..."))
         q.put(("progress", 0))
@@ -309,9 +327,11 @@ class CombinedImportDialog(ctk.CTkToplevel):
         uasset_files = get_files_to_convert()
         total_c = len(uasset_files)
         if total_c == 0:
+            logger.warning("No uasset files found to convert after extraction")
             q.put(("status", "No files to convert"))
             return True
 
+        logger.info("Converting %d files using %d workers", total_c, max_workers)
         q.put(("status", f"Converting {total_c} files using {max_workers} workers..."))
         converted = 0
         errors = 0
@@ -339,9 +359,13 @@ class CombinedImportDialog(ctk.CTkToplevel):
                 q.put(("progress", (converted + errors) / total_c))
                 q.put(("count", f"Converted {converted} / {total_c} ({errors} errors)"))
 
+        logger.info("Part 1 Phase 4 complete: %d converted, %d errors", converted, errors)
+
         # --- Phase 5: buildings cache ---
+        logger.info("Part 1 Phase 5: Updating buildings cache")
         q.put(("status", "Updating buildings cache..."))
         _, _ = update_buildings_ini_from_json()
+        logger.info("Part 1 complete: game import finished with %d files converted", converted)
         q.put(("status", f"Game import complete — {converted} files converted"))
         q.put(("file", ""))
         q.put(("progress", 1.0))
@@ -363,10 +387,12 @@ class CombinedImportDialog(ctk.CTkToplevel):
         ) if secrets_dir.exists() else False
 
         if not has_zip:
+            logger.info("No secrets ZIP found, prompting user")
             # Ask the main thread to prompt the user
             q.put(("need_secrets_zip", None))
             return
 
+        logger.info("Secrets ZIP found, running secrets pipeline")
         self._run_secrets_pipeline(secrets_dir)
 
     def _run_secrets_pipeline(self, secrets_dir: Path):
@@ -374,12 +400,14 @@ class CombinedImportDialog(ctk.CTkToplevel):
         q = self.update_queue
 
         # Step 1: cleanup
+        logger.info("Secrets pipeline step 1: Clearing existing directories")
         q.put(("title", "Importing Secrets"))
         q.put(("status", "Clearing existing directories..."))
         q.put(("progress", 0))
         q.put(("file", ""))
         q.put(("count", ""))
         dirs_removed = clear_all_directories_in_secrets_source()
+        logger.info("Removed %d items from secrets source", dirs_removed)
         q.put(("status", f"Removed {dirs_removed} items"))
         q.put(("progress", 0.2))
         if self.cancelled:
@@ -387,27 +415,33 @@ class CombinedImportDialog(ctk.CTkToplevel):
             return
 
         # Step 2: download GitHub repo
+        logger.info("Secrets pipeline step 2: Downloading from GitHub")
         q.put(("status", "Downloading from GitHub..."))
         ok, msg = download_github_repo(
             secrets_dir,
             progress_callback=lambda m: q.put(("file", m)),
         )
         if not ok:
+            logger.error("GitHub download failed: %s", msg)
             q.put(("error", f"Download failed: {msg}"))
             q.put(("done", False))
             return
+        logger.info("GitHub download complete")
         q.put(("progress", 0.5))
         if self.cancelled:
             q.put(("done", False))
             return
 
         # Step 3: extract GitHub ZIP → jsondata
+        logger.info("Secrets pipeline step 3: Extracting Moria data to jsondata")
         q.put(("status", "Extracting Moria data to jsondata..."))
         ok, msg, file_count = extract_moria_from_github_zip(secrets_dir)
         if not ok:
+            logger.error("GitHub ZIP extraction failed: %s", msg)
             q.put(("error", f"Extract failed: {msg}"))
             q.put(("done", False))
             return
+        logger.info("Extracted %d files from GitHub ZIP", file_count)
         q.put(("file", msg))
         q.put(("progress", 0.7))
         if self.cancelled:
@@ -415,27 +449,36 @@ class CombinedImportDialog(ctk.CTkToplevel):
             return
 
         # Step 4: extract other ZIP files
+        logger.info("Secrets pipeline step 4: Extracting additional ZIP files")
         other_zips = [
             z for z in secrets_dir.glob("*.zip") if z.name != GITHUB_ZIP_FILENAME
         ]
         if other_zips:
+            logger.info("Found %d additional ZIP file(s) to extract", len(other_zips))
             q.put(("status", f"Extracting {len(other_zips)} additional ZIP file(s)..."))
             zip_results = extract_other_zip_files(secrets_dir)
             for zip_name, count in zip_results:
                 if count >= 0:
+                    logger.info("Extracted %d files from %s", count, zip_name)
                     q.put(("file", f"Extracted {count} files from {zip_name}"))
                 else:
+                    logger.error("Failed to extract %s", zip_name)
                     q.put(("file", f"Failed to extract {zip_name}"))
+        else:
+            logger.debug("No additional ZIP files found")
         q.put(("progress", 0.9))
         if self.cancelled:
             q.put(("done", False))
             return
 
         # Step 5: manifest
+        logger.info("Secrets pipeline step 5: Generating secrets manifest")
         q.put(("status", "Generating secrets manifest..."))
         manifest_count, _ = generate_secrets_manifest(secrets_dir)
+        logger.info("Secrets manifest generated with %d entries", manifest_count)
         q.put(("file", f"Manifest: {manifest_count} entries"))
         q.put(("progress", 1.0))
+        logger.info("Combined import completed: %d secret files, %d manifest entries", file_count, manifest_count)
         q.put(("status", f"Import complete! {file_count} secret files, {manifest_count} manifest entries"))
         q.put(("done", True))
 
@@ -463,6 +506,7 @@ class CombinedImportDialog(ctk.CTkToplevel):
         ) if secrets_dir.exists() else False
 
         if has_zip:
+            logger.info("Secrets ZIP provided, resuming secrets pipeline")
             # Resume the secrets pipeline in a new thread
             thread = threading.Thread(
                 target=self._run_secrets_pipeline,
@@ -473,6 +517,7 @@ class CombinedImportDialog(ctk.CTkToplevel):
             self._check_queue()
         else:
             # User closed without adding a ZIP — finish without secrets
+            logger.info("No secrets ZIP provided, completing without secrets")
             self.update_queue.put(("status", "Import complete (secrets skipped)"))
             self.update_queue.put(("progress", 1.0))
             self.update_queue.put(("done", True))
@@ -494,6 +539,7 @@ class CombinedImportDialog(ctk.CTkToplevel):
 
     def _on_cancel(self):
         """Handle cancel."""
+        logger.info("Combined import cancelled by user")
         self.cancelled = True
         self.status_label.configure(text="Cancelling...")
 

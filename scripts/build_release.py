@@ -12,12 +12,22 @@ Usage:
 """
 
 import argparse
+import re
 import subprocess
 import sys
 import zipfile
 from pathlib import Path
 import os
 import shutil
+
+# Files matching these patterns (case-insensitive) are excluded from installer zips
+EXCLUDED_FILENAME_PATTERNS = [re.compile(r'mereak', re.IGNORECASE),
+                              re.compile(r'ax', re.IGNORECASE)]
+
+
+def is_excluded_file(filename):
+    """Check if a filename matches any excluded pattern."""
+    return any(p.search(filename) for p in EXCLUDED_FILENAME_PATTERNS)
 
 
 def run_command(cmd, description, timeout=120):
@@ -58,6 +68,61 @@ def run_command(cmd, description, timeout=120):
         return False
     except (OSError, ValueError) as e:
         print(f"[ERROR] {description} failed: {e}")
+        return False
+
+
+def verify_signature(file_path):
+    """Verify that a file has a valid Authenticode signature.
+
+    Uses PowerShell Get-AuthenticodeSignature to check the signature status.
+
+    Args:
+        file_path: Path to the signed file.
+
+    Returns:
+        True if the signature is valid, False otherwise.
+    """
+    file_path = Path(file_path)
+    if not file_path.exists():
+        print(f"[ERROR] Cannot verify signature - file not found: {file_path}")
+        return False
+
+    ps_cmd = (
+        f'$sig = Get-AuthenticodeSignature -FilePath "{file_path}"; '
+        f'Write-Output "Status: $($sig.Status)"; '
+        f'Write-Output "Signer: $($sig.SignerCertificate.Subject)"; '
+        f'if ($sig.Status -eq "Valid") {{ exit 0 }} else {{ exit 1 }}'
+    )
+
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-Command", ps_cmd],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False
+        )
+
+        if result.returncode == 0:
+            print(f"[OK] Signature verified: {file_path.name}")
+            if result.stdout:
+                for line in result.stdout.strip().split('\n'):
+                    print(f"     {line}")
+            return True
+
+        print(f"[ERROR] Signature verification FAILED for {file_path.name}")
+        if result.stdout:
+            for line in result.stdout.strip().split('\n'):
+                print(f"     {line}")
+        if result.stderr:
+            print(result.stderr)
+        return False
+
+    except subprocess.TimeoutExpired:
+        print(f"[ERROR] Signature verification timed out for {file_path.name}")
+        return False
+    except (OSError, ValueError) as e:
+        print(f"[ERROR] Signature verification error: {e}")
         return False
 
 
@@ -108,6 +173,8 @@ def create_installer_zips(project_root):
 
     print("\nCreating installer zip bundles...")
 
+    skipped_files = []
+
     # Definitions.zip
     print("  - Definitions.zip...")
     with zipfile.ZipFile(installer_dir / 'Definitions.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
@@ -115,6 +182,9 @@ def create_installer_zips(project_root):
         if defs_dir.exists():
             for root, _, files in os.walk(defs_dir):
                 for file in files:
+                    if is_excluded_file(file):
+                        skipped_files.append(file)
+                        continue
                     file_path = Path(root) / file
                     arcname = file_path.relative_to(defs_dir)
                     zf.write(file_path, arcname)
@@ -127,6 +197,9 @@ def create_installer_zips(project_root):
         if cc_dir.exists():
             for root, _, files in os.walk(cc_dir):
                 for file in files:
+                    if is_excluded_file(file):
+                        skipped_files.append(file)
+                        continue
                     file_path = Path(root) / file
                     arcname = file_path.relative_to(cc_dir)
                     zf.write(file_path, arcname)
@@ -139,6 +212,9 @@ def create_installer_zips(project_root):
         if cs_dir.exists():
             for root, _, files in os.walk(cs_dir):
                 for file in files:
+                    if is_excluded_file(file):
+                        skipped_files.append(file)
+                        continue
                     file_path = Path(root) / file
                     arcname = file_path.relative_to(cs_dir)
                     zf.write(file_path, arcname)
@@ -151,6 +227,9 @@ def create_installer_zips(project_root):
         if prebuilt_dir.exists():
             for root, _, files in os.walk(prebuilt_dir):
                 for file in files:
+                    if is_excluded_file(file):
+                        skipped_files.append(file)
+                        continue
                     file_path = Path(root) / file
                     arcname = file_path.relative_to(prebuilt_dir)
                     zf.write(file_path, arcname)
@@ -162,6 +241,9 @@ def create_installer_zips(project_root):
         secrets_dir = appdata / 'Secrets Source'
         if secrets_dir.exists():
             for file_path in secrets_dir.rglob('*.def'):
+                if is_excluded_file(file_path.name):
+                    skipped_files.append(file_path.name)
+                    continue
                 arcname = file_path.relative_to(secrets_dir)
                 zf.write(file_path, arcname)
             print(f"    Added {len(zf.namelist())} files")
@@ -173,6 +255,9 @@ def create_installer_zips(project_root):
         if new_obj_dir.exists():
             for root, _, files in os.walk(new_obj_dir):
                 for file in files:
+                    if is_excluded_file(file):
+                        skipped_files.append(file)
+                        continue
                     file_path = Path(root) / file
                     arcname = file_path.relative_to(new_obj_dir)
                     zf.write(file_path, arcname)
@@ -185,6 +270,9 @@ def create_installer_zips(project_root):
         if utils_dir.exists():
             for root, _, files in os.walk(utils_dir):
                 for file in files:
+                    if is_excluded_file(file):
+                        skipped_files.append(file)
+                        continue
                     file_path = Path(root) / file
                     arcname = file_path.relative_to(utils_dir)
                     zf.write(file_path, arcname)
@@ -202,7 +290,12 @@ def create_installer_zips(project_root):
         src = installer_dir / name
         if src.exists():
             shutil.copy2(src, dist_dir / name)
-    print(f"[OK] Installer zips created and copied to dist/")
+    print("[OK] Installer zips created and copied to dist/")
+
+    if skipped_files:
+        print(f"\n  Excluded {len(skipped_files)} personal file(s):")
+        for name in sorted(set(skipped_files)):
+            print(f"    - {name}")
 
     return True
 
@@ -270,11 +363,15 @@ def main():
         print("\n[ERROR] Copy to release failed!")
         return 1
 
-    # Step 3: Sign executable
+    # Step 3: Sign and verify executable
     if not args.no_sign:
         release_exe = project_root / "release" / "MoriaMODCreator.exe"
         if not sign_file(release_exe):
-            print("\nWarning: Executable signing failed. Continuing without signature.")
+            print("\n[ERROR] Executable signing failed!")
+            return 1
+        if not verify_signature(release_exe):
+            print("\n[ERROR] Executable signature verification failed!")
+            return 1
 
     # Step 4: Create installer zips
     if not create_installer_zips(project_root):
@@ -284,12 +381,18 @@ def main():
     # Step 5: Build installer
     if not args.no_installer:
         if build_installer(project_root):
-            # Step 6: Sign installer
+            # Step 6: Sign and verify installer
             if not args.no_sign:
                 installer = project_root / "release" / "MoriaMODCreator_Setup_v1.0.exe"
-                if installer.exists():
-                    if not sign_file(installer):
-                        print("\nWarning: Installer signing failed.")
+                if not installer.exists():
+                    print(f"\n[ERROR] Installer not found: {installer}")
+                    return 1
+                if not sign_file(installer):
+                    print("\n[ERROR] Installer signing failed!")
+                    return 1
+                if not verify_signature(installer):
+                    print("\n[ERROR] Installer signature verification failed!")
+                    return 1
         else:
             print("\nWarning: Installer build skipped or failed.")
 

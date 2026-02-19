@@ -69,6 +69,7 @@ class DefinitionManager:
 
         ini_path = self.get_checkbox_ini_path()
         if not ini_path.exists():
+            logger.debug("No checkbox states file for mod '%s'", self._mod_name)
             return
 
         config = configparser.ConfigParser()
@@ -82,6 +83,8 @@ class DefinitionManager:
                         # Reconstruct path from key (replace | with \ and ~ with :)
                         path_str = key.replace('|', '\\').replace('~', ':')
                         self._checkbox_states[path_str] = True
+            logger.debug("Loaded %d checkbox states for mod '%s'",
+                         len(self._checkbox_states), self._mod_name)
         except (OSError, configparser.Error) as e:
             logger.error("Error loading checkbox states: %s", e)
 
@@ -115,6 +118,9 @@ class DefinitionManager:
             ini_path.parent.mkdir(parents=True, exist_ok=True)
             with open(ini_path, 'w', encoding='utf-8') as f:
                 config.write(f)
+            checked_count = sum(1 for v in self._checkbox_states.values() if v)
+            logger.debug("Saved %d checked states for mod '%s'",
+                         checked_count, self._mod_name)
         except OSError as e:
             logger.error("Error saving checkbox states: %s", e)
 

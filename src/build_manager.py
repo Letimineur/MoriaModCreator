@@ -89,8 +89,10 @@ class BuildManager:  # pylint: disable=too-few-public-methods
             Tuple of (success, message).
         """
         if not def_files:
+            logger.warning("Build called with no definition files")
             return False, "No definition files selected"
 
+        logger.info("Build started for mod '%s' with %d definition file(s)", mod_name, len(def_files))
         try:
             # Step 0: Clear previous build files
             self._report_progress("Cleaning previous build files...", 0.0)
@@ -114,20 +116,26 @@ class BuildManager:  # pylint: disable=too-few-public-methods
             success_count, error_count = self._phase_c_apply_changes(mod_name, def_files)
 
             if error_count > 0:
+                logger.error("Definition apply failed: %d succeeded, %d failed", success_count, error_count)
                 return False, f"{success_count} succeeded, {error_count} failed"
 
             if success_count == 0:
+                logger.error("No files were processed from %d definition files", len(def_files))
                 return False, "No files were processed"
 
             # Step 2: Convert JSON to uasset (40-70%)
+            logger.info("Step 2: Converting JSON to uasset format")
             self._report_progress("Converting to uasset format...", 0.4)
             convert_ok, convert_error = self._convert_json_to_uasset(mod_name)
             if not convert_ok:
+                logger.error("JSON to uasset conversion failed: %s", convert_error)
                 return False, convert_error or "JSON to uasset conversion failed"
 
             # Step 3: Run retoc (70-90%)
+            logger.info("Step 3: Running retoc to package mod files")
             self._report_progress("Packaging mod files...", 0.7)
             if not self._run_retoc(mod_name):
+                logger.error("retoc packaging failed for mod '%s'", mod_name)
                 return False, "retoc packaging failed"
 
             # Step 3.5: Copy secrets pak files if applicable (85-90%)
@@ -136,12 +144,15 @@ class BuildManager:  # pylint: disable=too-few-public-methods
                 self._copy_secrets_pak_files(mod_name)
 
             # Step 4: Create zip (90-100%)
+            logger.info("Step 4: Creating zip file")
             self._report_progress("Creating zip file...", 0.9)
             zip_path = self._create_zip(mod_name)
 
             if zip_path:
+                logger.info("Build completed successfully for mod '%s': %s", mod_name, zip_path)
                 self._report_progress("Build complete!", 1.0)
                 return True, f"Mod saved to: {zip_path}"
+            logger.error("Could not create zip file for mod '%s'", mod_name)
             return False, "Could not create zip file"
 
         except (OSError, ValueError, KeyError) as e:
@@ -974,6 +985,7 @@ class BuildManager:  # pylint: disable=too-few-public-methods
             logger.error("No JSON files found to convert")
             return (False, "No JSON files found to convert")
 
+        logger.info("Converting %d JSON files to uasset format", len(json_files))
         for i, json_file in enumerate(json_files):
             # Update progress
             step_progress = 0.4 + (0.3 * (i / len(json_files)))
@@ -1022,6 +1034,7 @@ class BuildManager:  # pylint: disable=too-few-public-methods
                 logger.error("Error converting %s: %s", json_file.name, e)
                 return (False, f"File: {json_file.name}\n\n{e}")
 
+        logger.info("All %d JSON files converted to uasset successfully", len(json_files))
         return (True, "")
 
     def _run_retoc(self, mod_name: str) -> bool:
@@ -1059,6 +1072,7 @@ class BuildManager:  # pylint: disable=too-few-public-methods
             str(output_utoc)
         ]
 
+        logger.debug("Running retoc command: %s", ' '.join(cmd))
         try:
             result = subprocess.run(
                 cmd,
@@ -1074,6 +1088,7 @@ class BuildManager:  # pylint: disable=too-few-public-methods
                 logger.error("stderr: %s", result.stderr)
                 return False
 
+            logger.info("retoc packaging completed successfully: %s", output_utoc)
             return True
 
         except OSError as e:

@@ -6,11 +6,14 @@ This dialog allows users to:
 3. The selected name populates the text field used by the Build button
 """
 
+import logging
 from pathlib import Path
 
 import customtkinter as ctk
 
 from src.config import get_appdata_dir
+
+logger = logging.getLogger(__name__)
 
 
 def _get_definitions_building_dir():
@@ -217,15 +220,18 @@ class ConstructionNameDialog(ctk.CTkToplevel):
             name = name[:-4]
 
         if not name:
+            logger.warning("Construction name dialog: empty name submitted")
             self.name_entry.configure(border_color="red")
             return
 
         # Validate filename (no invalid characters)
         invalid_chars = '<>:"/\\|?*'
         if any(c in name for c in invalid_chars):
+            logger.warning("Construction name dialog: invalid characters in name '%s'", name)
             self.name_entry.configure(border_color="red")
             return
 
+        logger.debug("Construction name selected: %s", name)
         self.result = name
         self.destroy()
 

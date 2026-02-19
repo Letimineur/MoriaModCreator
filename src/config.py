@@ -1,8 +1,11 @@
 """Configuration management for Moria MOD Creator."""
 
+import logging
 import os
 import configparser
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 # Color scheme options
@@ -122,7 +125,8 @@ def save_config(  # pylint: disable=too-many-arguments
     mymodfiles_dir: str,
     definitions_dir: str,
     color_scheme: str,
-    max_workers: int = 1
+    max_workers: int = 1,
+    debug: bool = False
 ) -> None:
     """Save the configuration to config.ini.
 
@@ -135,6 +139,7 @@ def save_config(  # pylint: disable=too-many-arguments
         definitions_dir: The path to the MOD Definitions directory.
         color_scheme: The color scheme setting.
         max_workers: Number of parallel processes for JSON conversion.
+        debug: Enable debug mode for verbose logging.
     """
     # Invalidate cache before saving
     _cache.config = None
@@ -157,6 +162,9 @@ def save_config(  # pylint: disable=too-many-arguments
     config['Performance'] = {
         'max_workers': str(max_workers)
     }
+    config['Debug'] = {
+        'debug': str(debug).lower()
+    }
 
     # Create directories if they don't exist
     Path(utilities_dir).mkdir(parents=True, exist_ok=True)
@@ -169,6 +177,9 @@ def save_config(  # pylint: disable=too-many-arguments
     config_path = get_config_path()
     with open(config_path, 'w', encoding='utf-8') as f:
         config.write(f)
+
+    logger.debug("Config saved: install_type=%s, color=%s, workers=%s, debug=%s",
+                 install_type, color_scheme, max_workers, debug)
 
 
 def get_game_install_path() -> str | None:
@@ -228,6 +239,14 @@ def get_max_workers() -> int:
         except ValueError:
             return 1
     return 1
+
+
+def get_debug_mode() -> bool:
+    """Get the debug mode flag from config, or default False."""
+    config = load_config()
+    if config.has_option('Debug', 'debug'):
+        return config.get('Debug', 'debug').lower() in ('true', '1', 'yes')
+    return False
 
 
 def get_constructions_json_dir() -> Path | None:
@@ -337,6 +356,12 @@ def validate_config() -> list[str]:
     game_path = get_game_install_path()
     if game_path and not Path(game_path).exists():
         issues.append(f"Game installation path not found: {game_path}")
+
+    if issues:
+        for issue in issues:
+            logger.warning("Config validation: %s", issue)
+    else:
+        logger.debug("Config validation passed")
 
     return issues
 

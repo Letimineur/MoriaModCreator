@@ -1,9 +1,12 @@
 """Initial configuration dialog for Moria MOD Creator."""
 
+import logging
 from pathlib import Path
 from tkinter import filedialog
 
 import customtkinter as ctk
+
+logger = logging.getLogger(__name__)
 
 from src.config import (
     get_available_install_options,
@@ -13,6 +16,7 @@ from src.config import (
     get_default_mymodfiles_dir,
     get_default_definitions_dir,
     get_max_workers,
+    get_debug_mode,
     COLOR_SCHEMES,
     DEFAULT_COLOR_SCHEME,
 )
@@ -25,7 +29,7 @@ class ConfigDialog(ctk.CTkToplevel):
         super().__init__(parent)
 
         self.title("Moria MOD Creator - Configuration")
-        self.geometry("750x470")
+        self.geometry("825x510")
         self.resizable(False, False)
 
         # Make this dialog modal
@@ -39,9 +43,9 @@ class ConfigDialog(ctk.CTkToplevel):
 
         # Center the dialog on screen
         self.update_idletasks()
-        x = (self.winfo_screenwidth() - 750) // 2
-        y = (self.winfo_screenheight() - 470) // 2
-        self.geometry(f"750x470+{x}+{y}")
+        x = (self.winfo_screenwidth() - 825) // 2
+        y = (self.winfo_screenheight() - 510) // 2
+        self.geometry(f"825x510+{x}+{y}")
 
         # Result tracking
         self.result = False
@@ -60,8 +64,10 @@ class ConfigDialog(ctk.CTkToplevel):
         self.definitions_path = ctk.StringVar(value=str(get_default_definitions_dir()))
         self.color_scheme = ctk.StringVar(value=DEFAULT_COLOR_SCHEME)
         self.max_workers = ctk.StringVar(value=str(get_max_workers()))
+        self.debug_mode = ctk.StringVar(value="1" if get_debug_mode() else "0")
 
         self._create_widgets()
+        logger.debug("Config dialog created (%dx%d)", 825, 510)
 
         # Handle window close button
         self.protocol("WM_DELETE_WINDOW", self._on_cancel)
@@ -105,7 +111,7 @@ class ConfigDialog(ctk.CTkToplevel):
         # Game path display
         self.game_path_label = ctk.CTkLabel(
             main_frame, text="", font=ctk.CTkFont(size=10),
-            text_color="gray", wraplength=700, justify="left"
+            text_color="gray", wraplength=775, justify="left"
         )
         self.game_path_label.grid(row=row, column=0, columnspan=3, sticky="w", pady=(0, 15))
 
@@ -170,6 +176,28 @@ class ConfigDialog(ctk.CTkToplevel):
             font=ctk.CTkFont(size=10), text_color="gray"
         )
         workers_hint.grid(row=row, column=2, sticky="w", padx=(10, 0), pady=5)
+
+        row += 1
+
+        # Debug Mode
+        label = ctk.CTkLabel(main_frame, text="Debug Mode:", font=ctk.CTkFont(size=13))
+        label.grid(row=row, column=0, sticky="w", padx=(0, 10), pady=5)
+
+        self.debug_switch = ctk.CTkSwitch(
+            main_frame,
+            text="",
+            variable=self.debug_mode,
+            onvalue="1",
+            offvalue="0",
+            width=46
+        )
+        self.debug_switch.grid(row=row, column=1, sticky="w", pady=5)
+
+        debug_hint = ctk.CTkLabel(
+            main_frame, text="(Enable verbose logging for troubleshooting)",
+            font=ctk.CTkFont(size=10), text_color="gray"
+        )
+        debug_hint.grid(row=row, column=2, sticky="w", padx=(10, 0), pady=5)
 
         row += 1
 
@@ -278,6 +306,7 @@ class ConfigDialog(ctk.CTkToplevel):
 
     def _on_cancel(self):
         """Handle cancel button click."""
+        logger.debug("User cancelled config dialog")
         self.result = False
         self.destroy()
 
@@ -285,14 +314,18 @@ class ConfigDialog(ctk.CTkToplevel):
         """Handle save button click."""
         game_path = self.game_path.get()
         if not game_path:
+            logger.warning("Save attempted with no game path selected")
             self.game_path_label.configure(text="Please select a valid game path!", text_color="red")
             return
 
         if not Path(game_path).exists():
+            logger.warning("Save attempted with non-existent game path: %s", game_path)
             self.game_path_label.configure(text=f"Path does not exist: {game_path}", text_color="red")
             return
 
         install_type = self.game_dropdown.get()
+        logger.debug("Saving config — install=%s, game=%s, workers=%s, debug=%s",
+                      install_type, game_path, self.max_workers.get(), self.debug_mode.get())
 
         save_config(
             game_install_path=game_path,
@@ -302,7 +335,8 @@ class ConfigDialog(ctk.CTkToplevel):
             mymodfiles_dir=self.mymodfiles_path.get(),
             definitions_dir=self.definitions_path.get(),
             color_scheme=self.color_scheme.get(),
-            max_workers=int(self.max_workers.get())
+            max_workers=int(self.max_workers.get()),
+            debug=self.debug_mode.get() == "1"
         )
 
         self.result = True

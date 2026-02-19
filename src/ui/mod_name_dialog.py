@@ -1,11 +1,14 @@
 """Mod Name dialog for Moria MOD Creator."""
 
+import logging
 import shutil
 from pathlib import Path
 
 import customtkinter as ctk
 
 from src.config import get_default_mymodfiles_dir
+
+logger = logging.getLogger(__name__)
 
 
 class _ConfirmDeleteDialog(ctk.CTkToplevel):
@@ -246,6 +249,7 @@ class ModNameDialog(ctk.CTkToplevel):
         if confirm.result:
             mod_dir = get_default_mymodfiles_dir() / mod_name
             if mod_dir.exists():
+                logger.info("Deleting mod directory: %s", mod_dir)
                 shutil.rmtree(mod_dir)
             # Clear selection if the deleted mod was selected
             if self.name_var.get() == mod_name:
@@ -267,13 +271,14 @@ class ModNameDialog(ctk.CTkToplevel):
         mod_name = self.name_var.get().strip()
 
         if not mod_name:
-            # Show error - name required
+            logger.warning("Mod name dialog: empty name submitted")
             self.name_entry.configure(border_color="red")
             return
 
         # Validate mod name (no invalid characters)
         invalid_chars = '<>:"/\\|?*'
         if any(c in mod_name for c in invalid_chars):
+            logger.warning("Mod name dialog: invalid characters in name '%s'", mod_name)
             self.name_entry.configure(border_color="red")
             return
 
@@ -289,14 +294,15 @@ class ModNameDialog(ctk.CTkToplevel):
             (mod_dir / "jsonfiles").mkdir(exist_ok=True)
             (mod_dir / "finalmod").mkdir(exist_ok=True)
 
+            logger.debug("Created mod directory structure: %s", mod_dir)
+
             # Set result and close
             self.result = mod_name
             self.destroy()
 
         except OSError as e:
-            # Show error in entry
+            logger.error("Error creating mod directory '%s': %s", mod_dir, e)
             self.name_entry.configure(border_color="red")
-            print(f"Error creating mod directory: {e}")
 
 
 def show_mod_name_dialog(parent: ctk.CTk, current_name: str = "") -> str | None:

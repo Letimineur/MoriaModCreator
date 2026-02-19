@@ -306,6 +306,7 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
         self.convert_btn = None
 
         self._create_widgets()
+        logger.debug("MainWindow initialized")
 
     # =========================================================================
     # WIDGET CREATION METHODS
@@ -921,6 +922,7 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
 
         if dialog.result:
             try:
+                logger.info("Deleting prebuilt mod: %s", name)
                 ini_path.unlink()
                 # Clear info pane if the deleted mod was displayed
                 if self.novice_last_clicked_mod == name:
@@ -929,6 +931,7 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
                 self._refresh_novice_mod_list()
                 self.set_status_message(f"Deleted prebuilt mod: {name}")
             except OSError as e:
+                logger.error("Error deleting prebuilt mod %s: %s", name, e)
                 self.set_status_message(f"Error deleting {name}: {e}", is_error=True)
 
     def _update_novice_mod_info(self, mod_stem: str):
@@ -1439,13 +1442,16 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
         if dialog.result:
             try:
                 if is_dir:
+                    logger.info("Deleting definition folder: %s", path)
                     shutil.rmtree(path)
                 else:
+                    logger.info("Deleting definition file: %s", path)
                     path.unlink()
                 # Refresh the list
                 self._refresh_definitions_list(self.current_definitions_dir)
                 self.set_status_message(f"Deleted {item_type}: {name}")
             except OSError as e:
+                logger.error("Error deleting %s '%s': %s", item_type, name, e)
                 self.set_status_message(f"Error deleting {name}: {e}", is_error=True)
 
     def _update_left_select_all_state(self):
@@ -2652,6 +2658,7 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
         Args:
             file_path: Path to the .def file to display.
         """
+        logger.debug("Showing definition details: %s", file_path.name)
         # Store current definition path for saving
         self.current_definition_path = file_path
 
@@ -2953,6 +2960,7 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
             self.set_status_message("No changes to save")
             return
 
+        logger.debug("Saving card changes to %s", self.current_definition_path.name)
         try:
             # Parse existing .def file to preserve metadata
             tree = ET.parse(self.current_definition_path)
@@ -3022,13 +3030,17 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
             # Write to file with proper formatting
             self._write_pretty_xml(new_root, self.current_definition_path)
 
+            logger.info("Saved %d card change(s) to %s",
+                        len(self.change_cards), self.current_definition_path.name)
             self.set_status_message(
                 f"Saved {len(self.change_cards)} change(s) to {self.current_definition_path.name}"
             )
 
         except ET.ParseError as e:
+            logger.error("Error parsing .def file %s: %s", self.current_definition_path.name, e)
             self.set_status_message(f"Error parsing .def file: {e}")
         except (OSError, PermissionError) as e:
+            logger.error("Error saving file %s: %s", self.current_definition_path.name, e)
             self.set_status_message(f"Error saving file: {e}")
 
     def _write_pretty_xml(self, root: ET.Element, file_path: Path):
@@ -3463,6 +3475,7 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
         mod_name = self.mod_name_var.get().strip() if self.mod_name_var else ""
 
         if not mod_name:
+            logger.warning("Build attempted with no mod name set")
             self.set_status_message("Please enter a mod name", is_error=True)
             return
 
@@ -3473,8 +3486,11 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
         selected = self._get_all_selected_definitions_from_ini()
 
         if not selected:
+            logger.warning("Build attempted with no definitions selected")
             self.set_status_message("No definition files selected for build", is_error=True)
             return
+
+        logger.info("Starting build: mod='%s', %d definitions selected", mod_name, len(selected))
 
         # Show progress bar
         self._show_build_progress()
@@ -3497,8 +3513,10 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
             self._hide_build_progress()
 
             if success:
+                logger.info("Build complete: %s", message)
                 self.set_status_message(f"Build complete! {message}")
             else:
+                logger.error("Build failed: %s", message)
                 self.set_status_message("Build failed", is_error=True)
                 self._show_build_error(message)
 
@@ -3575,6 +3593,7 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
             self.set_status_message("No definition file selected", is_error=True)
             return
 
+        logger.debug("Saving changes to %s", self.current_definition_path.name)
         try:
             file_path = self.current_definition_path
 
@@ -3651,11 +3670,14 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
             tree.write(file_path, encoding='UTF-8', xml_declaration=True)
 
             if changes_added == 0 and properties_used:
+                logger.info("Saved template (no items selected) to %s", file_path.name)
                 self.set_status_message(f"Saved template (no items selected) to {file_path.name}")
             else:
+                logger.info("Saved %d changes to %s", changes_added, file_path.name)
                 self.set_status_message(f"Saved {changes_added} changes to {file_path.name}")
 
         except (ET.ParseError, OSError) as e:
+            logger.error("Error saving definition %s: %s", file_path.name, e)
             self.set_status_message(f"Error saving: {e}", is_error=True)
 
     def _indent_xml(self, elem, level=0):
@@ -3740,6 +3762,7 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
 
     def _run_import(self):
         """Run the retoc import and JSON conversion process."""
+        logger.info("Opening import dialog")
         show_import_dialog(self)
 
     def _has_secrets_zip(self) -> bool:
@@ -3768,6 +3791,7 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
 
     def _run_secrets_import(self):
         """Run the Secrets Source import process or show download prompt."""
+        logger.info("Running secrets import")
         if not self._has_secrets_zip():
             show_secrets_download_dialog(self, on_file_added=self._update_secrets_btn_state)
             # After download dialog closes, auto-proceed if ZIP now exists
@@ -3842,10 +3866,12 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
 
     def _run_combined_import(self):
         """Run the combined import process (Novice mode)."""
+        logger.info("Opening combined import dialog (Novice mode)")
         show_combined_import_dialog(self, on_secrets_btn_update=self._update_secrets_btn_state)
 
     def _open_settings(self):
         """Open the settings/configuration dialog."""
+        logger.debug("Opening settings dialog")
         from src.ui.config_dialog import show_config_dialog  # pylint: disable=import-outside-toplevel
         show_config_dialog(self)
 
@@ -3986,6 +4012,7 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
             self._show_definitions_view()
             return
 
+        logger.debug("Switching to Secrets view")
         self.current_view = "buildings"
         self._hide_all_views()
 
@@ -4008,6 +4035,7 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
             self._show_definitions_view()
             return
 
+        logger.debug("Switching to Constructions view")
         self.current_view = "constructions"
         self._hide_all_views()
 

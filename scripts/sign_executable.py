@@ -4,8 +4,10 @@ This script signs the executable using SSL.com eSigner cloud service.
 Credentials are stored in sign_config.py (not committed to git).
 """
 
+import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 def sign_file(file_path: Path) -> bool:
@@ -52,39 +54,55 @@ def sign_file(file_path: Path) -> bool:
         print(f"ERROR: CodeSignTool jar not found: {jar_file}")
         return False
 
-    # Build Java command to run CodeSignTool for SSL.com eSigner
-    cmd = [
-        str(java_exe),
-        "-jar",
-        str(jar_file),
-        "sign",
-        "-username=" + sign_config.USERNAME,
-        "-password=" + sign_config.PASSWORD,
-        "-credential_id=" + sign_config.CREDENTIAL_ID,
-        "-totp_secret=" + sign_config.TOTP_SECRET,
-        "-input_file_path=" + str(file_path.absolute()),
-        "-output_dir_path=" + str(file_path.parent.absolute())
-    ]
-
-    print(f"Signing {file_path.name} with SSL.com eSigner...")
-    print("This may take a moment as it connects to the cloud signing service...")
+    # Use a temp directory for signed output to avoid source==destination error
+    tmp_dir = tempfile.mkdtemp(prefix="codesign_")
 
     try:
-        # Run Java command directly (no shell needed)
+        # Build Java command to run CodeSignTool for SSL.com eSigner
+        cmd = [
+            str(java_exe),
+            "-jar",
+            str(jar_file),
+            "sign",
+            "-username=" + sign_config.USERNAME,
+            "-password=" + sign_config.PASSWORD,
+            "-credential_id=" + sign_config.CREDENTIAL_ID,
+            "-totp_secret=" + sign_config.TOTP_SECRET,
+            "-input_file_path=" + str(file_path.absolute()),
+            "-output_dir_path=" + tmp_dir
+        ]
+
+        print(f"Signing {file_path.name} with SSL.com eSigner...")
+        print("This may take a moment as it connects to the cloud signing service...")
+
+        # Run from CodeSignTool directory so it can find conf/code_sign_tool.properties
         result = subprocess.run(
             cmd,
             capture_output=True,
             text=True,
             shell=False,
             timeout=120,
-            check=False
+            check=False,
+            cwd=str(codesigntool_dir)
         )
 
-        if result.returncode == 0:
-            print(f"[OK] Successfully signed: {file_path.name}")
-            if result.stdout:
-                print(result.stdout)
-            return True
+        # Check stderr for errors - CodeSignTool may return 0 even on failure
+        has_error = (result.stderr and
+                     ("Exception" in result.stderr or
+                      "FileNotFoundException" in result.stderr))
+
+        if result.returncode == 0 and not has_error:
+            # Copy the signed file back over the original
+            signed_file = Path(tmp_dir) / file_path.name
+            if signed_file.exists():
+                shutil.copy2(signed_file, file_path)
+                print(f"[OK] Successfully signed: {file_path.name}")
+                if result.stdout:
+                    print(result.stdout)
+                return True
+
+            print(f"ERROR: Signed file not found in temp dir: {signed_file}")
+            return False
 
         print("ERROR: Signing failed!")
         if result.stderr:
@@ -98,6 +116,8 @@ def sign_file(file_path: Path) -> bool:
     except (OSError, ValueError) as e:
         print(f"ERROR: {e}")
         return False
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 if __name__ == "__main__":

@@ -1,10 +1,13 @@
 """Utility check dialog for verifying required executables."""
 
+import logging
 from pathlib import Path
 
 import customtkinter as ctk
 
 from src.config import get_utilities_dir
+
+logger = logging.getLogger(__name__)
 
 
 REQUIRED_UTILITIES = ["retoc.exe", "UAssetGUI.exe", "FModel.exe"]
@@ -28,10 +31,13 @@ def check_utilities_exist() -> bool:
     """Check if all required utilities exist in the utilities directory."""
     utilities_dir = get_utilities_dir()
     if not utilities_dir.exists():
+        logger.warning("Utilities directory does not exist: %s", utilities_dir)
         return False
     for util in REQUIRED_UTILITIES:
         if find_utility(utilities_dir, util) is None:
+            logger.warning("Required utility not found: %s", util)
             return False
+    logger.debug("All required utilities found in %s", utilities_dir)
     return True
 
 
@@ -44,6 +50,8 @@ def get_missing_utilities() -> list[str]:
     for util in REQUIRED_UTILITIES:
         if find_utility(utilities_dir, util) is None:
             missing.append(util)
+    if missing:
+        logger.warning("Missing utilities: %s", ', '.join(missing))
     return missing
 
 
@@ -166,7 +174,9 @@ class UtilityCheckDialog(ctk.CTkToplevel):
 
     def _on_retest(self):
         """Handle retest button click."""
+        logger.debug("Retesting for required utilities")
         if check_utilities_exist():
+            logger.info("All required utilities found after retest")
             self.result = True
             self.destroy()
         else:

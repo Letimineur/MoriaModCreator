@@ -27,8 +27,12 @@ from src.config import (
     get_definitions_dir,
     get_color_scheme,
     get_max_workers,
+    get_debug_mode,
     get_constructions_json_dir,
     set_constructions_json_dir,
+    get_prebuilt_modfiles_dir,
+    get_default_changesecrets_dir,
+    get_default_changeconstructions_dir,
     check_steam_path,
     check_epic_path,
     get_available_install_options,
@@ -69,7 +73,7 @@ class TestConfigValidation:
         mock_mymodfiles.return_value = Path(self.temp_dir) / 'mymodfiles'
         mock_definitions.return_value = Path(self.temp_dir) / 'definitions'
         mock_game.return_value = None
-        
+
         issues = validate_config()
         assert any('Utilities directory not found' in issue for issue in issues)
 
@@ -89,13 +93,13 @@ class TestConfigValidation:
         """Test validation when required utilities are missing."""
         utilities_dir = Path(self.temp_dir) / 'utilities'
         utilities_dir.mkdir(parents=True)
-        
+
         mock_utilities.return_value = utilities_dir
         mock_output.return_value = Path(self.temp_dir) / 'output'
         mock_mymodfiles.return_value = Path(self.temp_dir) / 'mymodfiles'
         mock_definitions.return_value = Path(self.temp_dir) / 'definitions'
         mock_game.return_value = None
-        
+
         issues = validate_config()
         assert any('UAssetGUI.exe' in issue for issue in issues)
         assert any('retoc.exe' in issue for issue in issues)
@@ -118,13 +122,13 @@ class TestConfigValidation:
         utilities_dir.mkdir(parents=True)
         (utilities_dir / 'UAssetGUI.exe').touch()
         (utilities_dir / 'retoc.exe').touch()
-        
+
         mock_utilities.return_value = utilities_dir
         mock_output.return_value = Path(self.temp_dir) / 'output'
         mock_mymodfiles.return_value = Path(self.temp_dir) / 'mymodfiles'
         mock_definitions.return_value = Path(self.temp_dir) / 'definitions'
         mock_game.return_value = None
-        
+
         issues = validate_config()
         assert len(issues) == 0
 
@@ -146,13 +150,13 @@ class TestConfigValidation:
         utilities_dir.mkdir(parents=True)
         (utilities_dir / 'UAssetGUI.exe').touch()
         (utilities_dir / 'retoc.exe').touch()
-        
+
         mock_utilities.return_value = utilities_dir
         mock_output.return_value = Path(self.temp_dir) / 'output'
         mock_mymodfiles.return_value = Path(self.temp_dir) / 'mymodfiles'
         mock_definitions.return_value = Path(self.temp_dir) / 'definitions'
         mock_game.return_value = "C:\\NonExistent\\Game\\Path"
-        
+
         issues = validate_config()
         assert any('Game installation path not found' in issue for issue in issues)
 
@@ -268,7 +272,7 @@ install_path = C:\\Test\\Path
 install_type = Steam
 ''')
         mock_path.return_value = config_file
-        
+
         config = load_config()
         assert config.has_section('Game')
         assert config.get('Game', 'install_path') == 'C:\\Test\\Path'
@@ -281,7 +285,7 @@ install_type = Steam
 install_path = C:\\Test\\Path
 ''')
         mock_path.return_value = config_file
-        
+
         # First load
         config1 = load_config()
         # Second load should return cached
@@ -311,7 +315,7 @@ class TestSaveConfig:
         config_file = Path(self.temp_dir) / 'config.ini'
         mock_path.return_value = config_file
         mock_constructions.return_value = Path(self.temp_dir) / 'constructions'
-        
+
         save_config(
             game_install_path='C:\\Game\\Path',
             install_type='Steam',
@@ -322,7 +326,7 @@ class TestSaveConfig:
             color_scheme='Dark Mode',
             max_workers=4
         )
-        
+
         assert config_file.exists()
         config = configparser.ConfigParser()
         config.read(config_file)
@@ -352,7 +356,7 @@ class TestGetConfigValues:
         mock_config.has_option.return_value = True
         mock_config.get.return_value = 'C:\\Game\\Path'
         mock_load.return_value = mock_config
-        
+
         result = get_game_install_path()
         assert result == 'C:\\Game\\Path'
 
@@ -362,7 +366,7 @@ class TestGetConfigValues:
         mock_config = MagicMock()
         mock_config.has_option.return_value = False
         mock_load.return_value = mock_config
-        
+
         result = get_game_install_path()
         assert result is None
 
@@ -373,7 +377,7 @@ class TestGetConfigValues:
         mock_config.has_option.return_value = True
         mock_config.get.return_value = 'Dark Mode'
         mock_load.return_value = mock_config
-        
+
         result = get_color_scheme()
         assert result == 'Dark Mode'
 
@@ -383,7 +387,7 @@ class TestGetConfigValues:
         mock_config = MagicMock()
         mock_config.has_option.return_value = False
         mock_load.return_value = mock_config
-        
+
         result = get_color_scheme()
         assert result == DEFAULT_COLOR_SCHEME
 
@@ -394,7 +398,7 @@ class TestGetConfigValues:
         mock_config.has_option.return_value = True
         mock_config.get.return_value = '5'
         mock_load.return_value = mock_config
-        
+
         result = get_max_workers()
         assert result == 5
 
@@ -405,7 +409,7 @@ class TestGetConfigValues:
         mock_config.has_option.return_value = True
         mock_config.get.return_value = 'invalid'
         mock_load.return_value = mock_config
-        
+
         result = get_max_workers()
         assert result == 1
 
@@ -415,7 +419,7 @@ class TestGetConfigValues:
         mock_config = MagicMock()
         mock_config.has_option.return_value = False
         mock_load.return_value = mock_config
-        
+
         result = get_max_workers()
         assert result == 1
 
@@ -426,7 +430,7 @@ class TestGetConfigValues:
         mock_config.has_option.return_value = True
         mock_config.get.return_value = 'C:\\Path\\To\\Json'
         mock_load.return_value = mock_config
-        
+
         result = get_constructions_json_dir()
         assert result == Path('C:\\Path\\To\\Json')
 
@@ -436,7 +440,7 @@ class TestGetConfigValues:
         mock_config = MagicMock()
         mock_config.has_option.return_value = False
         mock_load.return_value = mock_config
-        
+
         result = get_constructions_json_dir()
         assert result is None
 
@@ -462,12 +466,12 @@ class TestSetConstructionsJsonDir:
         """Test setting constructions JSON directory."""
         config_file = Path(self.temp_dir) / 'config.ini'
         mock_path.return_value = config_file
-        
+
         mock_config = configparser.ConfigParser()
         mock_load.return_value = mock_config
-        
+
         set_constructions_json_dir('C:\\New\\Path')
-        
+
         assert config_file.exists()
 
 
@@ -515,14 +519,14 @@ class TestConfigExists:
         config_file = Path(self.temp_dir) / 'config.ini'
         config_file.touch()
         mock_path.return_value = config_file
-        
+
         assert config_exists() is True
 
     @patch('src.config.get_config_path')
     def test_config_exists_false(self, mock_path):
         """Test config_exists returns False when file doesn't exist."""
         mock_path.return_value = Path(self.temp_dir) / 'nonexistent.ini'
-        
+
         assert config_exists() is False
 
 
@@ -546,7 +550,7 @@ class TestDirectoryGetters:
         mock_config.has_option.return_value = True
         mock_config.get.return_value = 'C:\\Custom\\Utilities'
         mock_load.return_value = mock_config
-        
+
         result = get_utilities_dir()
         assert result == Path('C:\\Custom\\Utilities')
 
@@ -558,7 +562,7 @@ class TestDirectoryGetters:
         mock_config.has_option.return_value = False
         mock_load.return_value = mock_config
         mock_default.return_value = Path('C:\\Default\\Utilities')
-        
+
         result = get_utilities_dir()
         assert result == Path('C:\\Default\\Utilities')
 
@@ -569,7 +573,7 @@ class TestDirectoryGetters:
         mock_config.has_option.return_value = True
         mock_config.get.return_value = 'C:\\Custom\\Output'
         mock_load.return_value = mock_config
-        
+
         result = get_output_dir()
         assert result == Path('C:\\Custom\\Output')
 
@@ -581,7 +585,7 @@ class TestDirectoryGetters:
         mock_config.has_option.return_value = False
         mock_load.return_value = mock_config
         mock_default.return_value = Path('C:\\Default\\Output')
-        
+
         result = get_output_dir()
         assert result == Path('C:\\Default\\Output')
 
@@ -592,7 +596,7 @@ class TestDirectoryGetters:
         mock_config.has_option.return_value = True
         mock_config.get.return_value = 'C:\\Custom\\MyModFiles'
         mock_load.return_value = mock_config
-        
+
         result = get_mymodfiles_dir()
         assert result == Path('C:\\Custom\\MyModFiles')
 
@@ -604,7 +608,7 @@ class TestDirectoryGetters:
         mock_config.has_option.return_value = False
         mock_load.return_value = mock_config
         mock_default.return_value = Path('C:\\Default\\MyModFiles')
-        
+
         result = get_mymodfiles_dir()
         assert result == Path('C:\\Default\\MyModFiles')
 
@@ -615,7 +619,7 @@ class TestDirectoryGetters:
         mock_config.has_option.return_value = True
         mock_config.get.return_value = 'C:\\Custom\\Definitions'
         mock_load.return_value = mock_config
-        
+
         result = get_definitions_dir()
         assert result == Path('C:\\Custom\\Definitions')
 
@@ -627,6 +631,159 @@ class TestDirectoryGetters:
         mock_config.has_option.return_value = False
         mock_load.return_value = mock_config
         mock_default.return_value = Path('C:\\Default\\Definitions')
-        
+
         result = get_definitions_dir()
         assert result == Path('C:\\Default\\Definitions')
+
+
+class TestGetDebugMode:
+    """Tests for get_debug_mode function."""
+
+    def setup_method(self):
+        _cache.config = None
+        _cache.mtime = None
+
+    def teardown_method(self):
+        _cache.config = None
+        _cache.mtime = None
+
+    @patch('src.config.load_config')
+    def test_debug_mode_true(self, mock_load):
+        """Test get_debug_mode returns True when set."""
+        mock_config = MagicMock()
+        mock_config.has_option.return_value = True
+        mock_config.get.return_value = 'true'
+        mock_load.return_value = mock_config
+
+        assert get_debug_mode() is True
+
+    @patch('src.config.load_config')
+    def test_debug_mode_yes(self, mock_load):
+        """Test get_debug_mode returns True for 'yes'."""
+        mock_config = MagicMock()
+        mock_config.has_option.return_value = True
+        mock_config.get.return_value = 'yes'
+        mock_load.return_value = mock_config
+
+        assert get_debug_mode() is True
+
+    @patch('src.config.load_config')
+    def test_debug_mode_one(self, mock_load):
+        """Test get_debug_mode returns True for '1'."""
+        mock_config = MagicMock()
+        mock_config.has_option.return_value = True
+        mock_config.get.return_value = '1'
+        mock_load.return_value = mock_config
+
+        assert get_debug_mode() is True
+
+    @patch('src.config.load_config')
+    def test_debug_mode_false(self, mock_load):
+        """Test get_debug_mode returns False when set to false."""
+        mock_config = MagicMock()
+        mock_config.has_option.return_value = True
+        mock_config.get.return_value = 'false'
+        mock_load.return_value = mock_config
+
+        assert get_debug_mode() is False
+
+    @patch('src.config.load_config')
+    def test_debug_mode_not_configured(self, mock_load):
+        """Test get_debug_mode returns False when not configured."""
+        mock_config = MagicMock()
+        mock_config.has_option.return_value = False
+        mock_load.return_value = mock_config
+
+        assert get_debug_mode() is False
+
+
+class TestAdditionalDirectoryPaths:
+    """Tests for additional directory path functions."""
+
+    def test_get_prebuilt_modfiles_dir(self):
+        """Test prebuilt modfiles directory path."""
+        result = get_prebuilt_modfiles_dir()
+        assert 'prebuilt modfiles' in str(result)
+
+    def test_get_default_changesecrets_dir(self):
+        """Test changesecrets directory path."""
+        result = get_default_changesecrets_dir()
+        assert 'changesecrets' in str(result)
+
+    def test_get_default_changeconstructions_dir(self):
+        """Test changeconstructions directory path."""
+        result = get_default_changeconstructions_dir()
+        assert 'changeconstructions' in str(result)
+
+
+class TestSaveConfigDebugFlag:
+    """Tests for save_config with debug parameter."""
+
+    def setup_method(self):
+        self.temp_dir = tempfile.mkdtemp()
+        _cache.config = None
+        _cache.mtime = None
+
+    def teardown_method(self):
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
+        _cache.config = None
+        _cache.mtime = None
+
+    @patch('src.config.get_config_path')
+    @patch('src.config.get_constructions_dir')
+    def test_save_config_with_debug_true(self, mock_constructions, mock_path):
+        """Test save_config stores debug=true."""
+        config_file = Path(self.temp_dir) / 'config.ini'
+        mock_path.return_value = config_file
+        mock_constructions.return_value = Path(self.temp_dir) / 'constructions'
+
+        save_config(
+            game_install_path='C:\\Game',
+            install_type='Steam',
+            utilities_dir=str(Path(self.temp_dir) / 'utilities'),
+            output_dir=str(Path(self.temp_dir) / 'output'),
+            mymodfiles_dir=str(Path(self.temp_dir) / 'mymodfiles'),
+            definitions_dir=str(Path(self.temp_dir) / 'definitions'),
+            color_scheme='Dark Mode',
+            max_workers=2,
+            debug=True
+        )
+
+        config = configparser.ConfigParser()
+        config.read(config_file)
+        assert config.has_section('Debug')
+        assert config.get('Debug', 'debug') == 'true'
+
+    @patch('src.config.get_config_path')
+    @patch('src.config.get_constructions_dir')
+    def test_save_config_with_debug_false(self, mock_constructions, mock_path):
+        """Test save_config stores debug=false."""
+        config_file = Path(self.temp_dir) / 'config.ini'
+        mock_path.return_value = config_file
+        mock_constructions.return_value = Path(self.temp_dir) / 'constructions'
+
+        save_config(
+            game_install_path='C:\\Game',
+            install_type='Custom',
+            utilities_dir=str(Path(self.temp_dir) / 'utilities'),
+            output_dir=str(Path(self.temp_dir) / 'output'),
+            mymodfiles_dir=str(Path(self.temp_dir) / 'mymodfiles'),
+            definitions_dir=str(Path(self.temp_dir) / 'definitions'),
+            color_scheme='Light Mode',
+            debug=False
+        )
+
+        config = configparser.ConfigParser()
+        config.read(config_file)
+        assert config.get('Debug', 'debug') == 'false'
+
+
+class TestGetAppdataDirFallback:
+    """Tests for get_appdata_dir when APPDATA env var is missing."""
+
+    @patch.dict('os.environ', {'APPDATA': ''})
+    def test_appdata_fallback(self):
+        """Test get_appdata_dir uses fallback when APPDATA is empty."""
+        result = get_appdata_dir()
+        assert 'MoriaMODCreator' in str(result)
+        assert result.exists()

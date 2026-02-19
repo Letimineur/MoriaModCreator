@@ -40,11 +40,13 @@ def get_files_to_convert() -> list[Path]:
     """Get list of uasset/umap files that need conversion."""
     retoc_dir = get_retoc_dir()
     if not retoc_dir.exists():
+        logger.debug("Retoc directory does not exist: %s", retoc_dir)
         return []
 
     files = []
     for ext in UASSET_EXTENSIONS:
         files.extend(retoc_dir.rglob(f"*{ext}"))
+    logger.debug("Found %d files to convert in %s", len(files), retoc_dir)
     return files
 
 
