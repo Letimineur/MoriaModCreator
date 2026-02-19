@@ -263,7 +263,7 @@ def main():
         if build_installer(project_root):
             # Step 6: Sign installer
             if not args.no_sign:
-                installer = project_root / "release" / "MoriaMODCreator_Setup_v0.9.exe"
+                installer = project_root / "release" / "MoriaMODCreator_Setup_v1.0.exe"
                 if installer.exists():
                     if not sign_file(installer):
                         print("\nWarning: Installer signing failed.")
