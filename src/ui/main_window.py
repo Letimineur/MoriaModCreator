@@ -22,7 +22,6 @@ import shutil
 import tkinter as tk
 from tkinter import ttk
 import xml.etree.ElementTree as ET
-import xml.dom.minidom
 from pathlib import Path
 from typing import Optional
 
@@ -2669,8 +2668,6 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
         title = self._get_definition_title(file_path)
         author = self._get_definition_author(file_path)
         description = self._get_definition_description(file_path)
-        display_data = self._build_display_data(file_path)
-
         # Clear loading message
         self.clear_status_message()
 
