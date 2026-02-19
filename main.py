@@ -38,7 +38,7 @@ def _apply_debug_mode():
     if get_debug_mode():
         _file_handler.setLevel(logging.DEBUG)
         logging.getLogger('src').setLevel(logging.DEBUG)
-        logger.info("Debug mode ON — verbose logging to %s", _log_path)
+        logger.info("Debug mode ON - verbose logging to %s", _log_path)
     else:
         _file_handler.setLevel(logging.WARNING)
         logging.getLogger('src').setLevel(logging.INFO)

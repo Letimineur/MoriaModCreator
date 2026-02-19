@@ -138,7 +138,7 @@ class TestCheckJsondataExists:
         """Test returns True when jsondata dir has JSON files."""
         jsondata_dir = Path(self.temp_dir) / 'output' / 'jsondata'
         jsondata_dir.mkdir(parents=True)
-        (jsondata_dir / 'test.json').write_text('{}')
+        (jsondata_dir / 'test.json').write_text('{}', encoding='utf-8')
         mock_output.return_value = Path(self.temp_dir) / 'output'
         assert check_jsondata_exists() is True
 
@@ -147,7 +147,7 @@ class TestCheckJsondataExists:
         """Test returns True when JSON files are in subdirectories."""
         sub_dir = Path(self.temp_dir) / 'output' / 'jsondata' / 'Moria' / 'Content'
         sub_dir.mkdir(parents=True)
-        (sub_dir / 'data.json').write_text('{}')
+        (sub_dir / 'data.json').write_text('{}', encoding='utf-8')
         mock_output.return_value = Path(self.temp_dir) / 'output'
         assert check_jsondata_exists() is True
 
@@ -156,7 +156,7 @@ class TestCheckJsondataExists:
         """Test returns False when dir has only non-JSON files."""
         jsondata_dir = Path(self.temp_dir) / 'output' / 'jsondata'
         jsondata_dir.mkdir(parents=True)
-        (jsondata_dir / 'test.txt').write_text('hello')
+        (jsondata_dir / 'test.txt').write_text('hello', encoding='utf-8')
         mock_output.return_value = Path(self.temp_dir) / 'output'
         assert check_jsondata_exists() is False
 
@@ -178,7 +178,7 @@ class TestUpdateBuildingsIniFromJson:
         )
         recipes_dir.mkdir(parents=True)
         recipes_path = recipes_dir / 'DT_ConstructionRecipes.json'
-        recipes_path.write_text(json.dumps({'NameMap': name_map}))
+        recipes_path.write_text(json.dumps({'NameMap': name_map}), encoding='utf-8')
         return recipes_path
 
     @patch('src.ui.shared_utils.get_appdata_dir')
@@ -451,7 +451,7 @@ class TestUpdateBuildingsIniFromJson:
             / 'Tech' / 'Data' / 'Building'
         )
         recipes_dir.mkdir(parents=True)
-        (recipes_dir / 'DT_ConstructionRecipes.json').write_text('not valid json')
+        (recipes_dir / 'DT_ConstructionRecipes.json').write_text('not valid json', encoding='utf-8')
 
         success, msg = update_buildings_ini_from_json()
         assert success is False

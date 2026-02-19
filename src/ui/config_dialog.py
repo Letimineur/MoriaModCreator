@@ -324,7 +324,7 @@ class ConfigDialog(ctk.CTkToplevel):
             return
 
         install_type = self.game_dropdown.get()
-        logger.debug("Saving config — install=%s, game=%s, workers=%s, debug=%s",
+        logger.debug("Saving config - install=%s, game=%s, workers=%s, debug=%s",
                       install_type, game_path, self.max_workers.get(), self.debug_mode.get())
 
         save_config(

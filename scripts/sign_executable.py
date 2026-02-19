@@ -80,6 +80,8 @@ def sign_file(file_path: Path) -> bool:
             cmd,
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             shell=False,
             timeout=120,
             check=False,

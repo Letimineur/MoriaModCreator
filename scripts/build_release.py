@@ -50,6 +50,8 @@ def run_command(cmd, description, timeout=120):
             cmd,
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             timeout=timeout,
             shell=isinstance(cmd, str),
             check=False
@@ -99,6 +101,8 @@ def verify_signature(file_path):
             ["powershell", "-NoProfile", "-Command", ps_cmd],
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             timeout=30,
             check=False
         )
@@ -323,6 +327,8 @@ def build_installer(project_root):
             ["where", "iscc"],
             capture_output=True,
             text=True,
+            encoding='utf-8',
+            errors='replace',
             check=False
         )
         if result.returncode == 0:
@@ -383,7 +389,7 @@ def main():
         if build_installer(project_root):
             # Step 6: Sign and verify installer
             if not args.no_sign:
-                installer = project_root / "release" / "MoriaMODCreator_Setup_v1.0.exe"
+                installer = project_root / "release" / "MoriaMODCreator_Setup_v1.1.exe"
                 if not installer.exists():
                     print(f"\n[ERROR] Installer not found: {installer}")
                     return 1

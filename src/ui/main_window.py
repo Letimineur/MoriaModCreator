@@ -1025,20 +1025,29 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
 
         # Collect selected prebuilt INI files
         prebuilt_dir = get_prebuilt_modfiles_dir()
+        logger.debug("Novice build: prebuilt dir = %s (exists=%s)", prebuilt_dir, prebuilt_dir.exists())
         selected_inis = []
         for stem, var in self.novice_mod_vars.items():
             if var.get():
                 ini_path = prebuilt_dir / f"{stem}.ini"
+                logger.debug("Novice build: checking INI %s (exists=%s)", ini_path.name, ini_path.exists())
                 if ini_path.exists():
                     selected_inis.append(ini_path)
 
         if not selected_inis:
+            logger.warning("Novice build: no prebuilt INIs found in %s", prebuilt_dir)
             self.set_status_message("No prebuilt mods selected for build", is_error=True)
             return
+
+        logger.debug("Novice build: %d INI file(s) selected: %s",
+                      len(selected_inis), [p.name for p in selected_inis])
 
         # Merge paths from all selected INI files and determine include_secrets
         merged_paths = set()
         include_secrets = False
+        definitions_dir = get_definitions_dir()
+        logger.debug("Novice build: definitions dir = %s (exists=%s)",
+                      definitions_dir, definitions_dir.exists())
 
         for ini_path in selected_inis:
             config = configparser.ConfigParser()
@@ -1046,12 +1055,16 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
             try:
                 config.read(ini_path, encoding='utf-8')
                 if 'Paths' in config:
+                    ini_keys = list(config['Paths'].keys())
+                    logger.debug("Novice build: %s has %d path entries", ini_path.name, len(ini_keys))
                     for key, value in config['Paths'].items():
                         if value.lower() == 'true':
                             path_str = key.replace('|', '\\').replace('~', ':')
-                            path = Path(path_str)
-                            if path.suffix.lower() == '.def' and path.exists():
+                            path = self._resolve_def_path(path_str, definitions_dir)
+                            if path and path.suffix.lower() == '.def':
                                 merged_paths.add(path)
+                else:
+                    logger.warning("Novice build: %s has no [Paths] section", ini_path.name)
                 if 'Settings' in config:
                     if config['Settings'].get('include_secrets', 'False').lower() == 'true':
                         include_secrets = True
@@ -1059,6 +1072,7 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
                 logger.warning("Error reading prebuilt INI %s: %s", ini_path.name, e)
 
         if not merged_paths:
+            logger.warning("Novice build: no valid .def files resolved from %d INI(s)", len(selected_inis))
             self.set_status_message("No valid definition files in selected mods", is_error=True)
             return
 
@@ -1413,6 +1427,48 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
 
         return False
 
+    @staticmethod
+    def _resolve_def_path(path_str: str, definitions_dir: Path) -> Optional[Path]:
+        """Resolve a definition file path, handling both absolute and relative paths.
+
+        Prebuilt INI files store paths relative to the definitions directory.
+        User-created INI files may store absolute paths. This method tries both.
+
+        Args:
+            path_str: Path string from an INI file (may be absolute or relative).
+            definitions_dir: The user's definitions directory.
+
+        Returns:
+            Resolved Path if the file exists, None otherwise.
+        """
+        path = Path(path_str)
+
+        # Try as absolute path first (user-created INI files)
+        if path.is_absolute() and path.exists():
+            logger.debug("Resolve path: absolute hit: %s", path)
+            return path
+
+        # Try as relative to definitions directory (prebuilt INI files)
+        resolved = definitions_dir / path
+        if resolved.exists():
+            logger.debug("Resolve path: relative hit: %s", resolved)
+            return resolved
+
+        # Fallback: extract relative part after 'definitions' in absolute paths
+        # from a different machine (e.g. C:\Users\other\...\definitions\X\Y.def)
+        path_lower = path_str.lower().replace('/', '\\')
+        marker = '\\definitions\\'
+        idx = path_lower.find(marker)
+        if idx != -1:
+            relative = path_str[idx + len(marker):]
+            resolved = definitions_dir / relative
+            if resolved.exists():
+                logger.debug("Resolve path: fallback hit: %s", resolved)
+                return resolved
+
+        logger.debug("Resolve path: MISS for '%s' (tried: %s)", path_str, definitions_dir / path)
+        return None
+
     def _on_left_select_all_toggle(self):
         """Handle left pane header checkbox toggle."""
         if self.left_select_all_state == "all":
@@ -1692,11 +1748,11 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
         if not hasattr(self, '_checkbox_states') or not self._checkbox_states:
             return selected
 
+        definitions_dir = get_definitions_dir()
         for path_str, is_checked in self._checkbox_states.items():
             if is_checked:
-                path = Path(path_str)
-                # Only include .def files (not directories)
-                if path.suffix.lower() == '.def' and path.exists():
+                path = self._resolve_def_path(path_str, definitions_dir)
+                if path and path.suffix.lower() == '.def':
                     selected.append(path)
 
         return selected

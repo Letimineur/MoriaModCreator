@@ -82,7 +82,7 @@ class TestParseDefinition:
     <mod file="\\Moria\\Content\\Test.json">
         <change item="TestItem" property="TestProp" value="100" />
     </mod>
-</definition>''')
+</definition>''', encoding='utf-8')
 
         result = DefinitionManager.parse_definition(def_file)
 
@@ -102,7 +102,7 @@ class TestParseDefinition:
 <definition>
     <mod file="\\Test.json">
     </mod>
-</definition>''')
+</definition>''', encoding='utf-8')
 
         result = DefinitionManager.parse_definition(def_file)
 
@@ -115,7 +115,7 @@ class TestParseDefinition:
     def test_parse_invalid_xml(self):
         """Test parsing invalid XML."""
         def_file = Path(self.temp_dir) / "invalid.def"
-        def_file.write_text("not valid xml <><><")
+        def_file.write_text("not valid xml <><><", encoding='utf-8')
 
         result = DefinitionManager.parse_definition(def_file)
         assert result is None
@@ -143,7 +143,7 @@ class TestGetDescription:
         def_file.write_text('''<?xml version="1.0" encoding="utf-8"?>
 <definition>
     <description>My Test Description</description>
-</definition>''')
+</definition>''', encoding='utf-8')
 
         result = DefinitionManager.get_description(def_file)
         assert result == "My Test Description"
@@ -153,7 +153,7 @@ class TestGetDescription:
         def_file = Path(self.temp_dir) / "test.def"
         def_file.write_text('''<?xml version="1.0" encoding="utf-8"?>
 <definition>
-</definition>''')
+</definition>''', encoding='utf-8')
 
         result = DefinitionManager.get_description(def_file)
         assert result == ""
@@ -181,7 +181,7 @@ class TestGetAuthor:
         def_file.write_text('''<?xml version="1.0" encoding="utf-8"?>
 <definition>
     <author>John Doe</author>
-</definition>''')
+</definition>''', encoding='utf-8')
 
         result = DefinitionManager.get_author(def_file)
         assert result == "John Doe"
@@ -191,7 +191,7 @@ class TestGetAuthor:
         def_file = Path(self.temp_dir) / "test.def"
         def_file.write_text('''<?xml version="1.0" encoding="utf-8"?>
 <definition>
-</definition>''')
+</definition>''', encoding='utf-8')
 
         result = DefinitionManager.get_author(def_file)
         assert result == ""
@@ -292,7 +292,7 @@ class TestCheckboxStatePersistence:
         ini_file = mod_dir / CHECKBOX_STATES_FILE
         ini_file.write_text(f'''[{CHECKBOX_STATES_SECTION}]
 C~|Test|Path|file.def = true
-''')
+''', encoding='utf-8')
 
         manager = DefinitionManager(mod_name="TestMod")
 
@@ -375,7 +375,7 @@ class TestModNameProperty:
         ini_file = mod_dir / CHECKBOX_STATES_FILE
         ini_file.write_text(f'''[{CHECKBOX_STATES_SECTION}]
 C~|Path|file.def = true
-''')
+''', encoding='utf-8')
 
         manager = DefinitionManager()
         assert manager.mod_name is None
@@ -417,7 +417,7 @@ class TestParseDefinitionExtended:
         <change item="Item2" property="Prop2" value="200" />
         <change item="Item3" property="Prop3" value="300" />
     </mod>
-</definition>''')
+</definition>''', encoding='utf-8')
 
         result = DefinitionManager.parse_definition(def_file)
 
@@ -435,7 +435,7 @@ class TestParseDefinitionExtended:
     <mod file="\\Test.json">
         <change item="OnlyItem" />
     </mod>
-</definition>''')
+</definition>''', encoding='utf-8')
 
         result = DefinitionManager.parse_definition(def_file)
 
@@ -451,7 +451,7 @@ class TestParseDefinitionExtended:
         def_file.write_text('''<?xml version="1.0" encoding="utf-8"?>
 <definition>
     <description>No mod element</description>
-</definition>''')
+</definition>''', encoding='utf-8')
 
         result = DefinitionManager.parse_definition(def_file)
 
@@ -469,7 +469,7 @@ class TestParseDefinitionExtended:
             <add_property>{"Name": "Rate", "Value": 0}</add_property>
         </change>
     </mod>
-</definition>''')
+</definition>''', encoding='utf-8')
 
         result = DefinitionManager.parse_definition(def_file)
 
@@ -480,7 +480,7 @@ class TestParseDefinitionExtended:
     def test_get_author_invalid_xml(self):
         """Test get_author returns empty string for invalid XML."""
         def_file = Path(self.temp_dir) / "bad.def"
-        def_file.write_text("not xml at all")
+        def_file.write_text("not xml at all", encoding='utf-8')
 
         result = DefinitionManager.get_author(def_file)
         assert result == ""
@@ -509,7 +509,7 @@ class TestCheckboxStatePersistenceErrors:
         mod_dir.mkdir(parents=True)
         ini_file = mod_dir / CHECKBOX_STATES_FILE
         # Write content that causes configparser issues
-        ini_file.write_text("[Paths\nbroken = content without closing bracket")
+        ini_file.write_text("[Paths\nbroken = content without closing bracket", encoding='utf-8')
 
         manager = DefinitionManager(mod_name="CorruptMod")
         # Should not raise, just log the error

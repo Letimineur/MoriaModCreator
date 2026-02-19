@@ -565,7 +565,7 @@ class TestBuildProcess:
     <mod file="\\Moria\\Content\\Test.json">
         <change item="TestItem" property="Value" value="100" />
     </mod>
-</definition>''')
+</definition>''', encoding='utf-8')
 
         success, _msg = self.manager.build("TestMod", [def_file])
         assert success is False
@@ -991,7 +991,7 @@ class TestCleanBuildDirectories:
 
         # Create build directories
         (mod_dir / 'jsonfiles').mkdir(parents=True)
-        (mod_dir / 'jsonfiles' / 'test.json').write_text('{}')
+        (mod_dir / 'jsonfiles' / 'test.json').write_text('{}', encoding='utf-8')
         (mod_dir / 'uasset').mkdir(parents=True)
         (mod_dir / 'finalmod').mkdir(parents=True)
 
@@ -1029,8 +1029,8 @@ class TestCreateZip:
         mock_mymodfiles.return_value = Path(self.temp_dir)
         mod_dir = Path(self.temp_dir) / 'ZipTestMod' / 'finalmod' / 'ZipTestMod_P'
         mod_dir.mkdir(parents=True)
-        (mod_dir / 'test.utoc').write_text('data')
-        (mod_dir / 'test.ucas').write_text('data')
+        (mod_dir / 'test.utoc').write_text('data', encoding='utf-8')
+        (mod_dir / 'test.ucas').write_text('data', encoding='utf-8')
 
         result = self.manager._create_zip('ZipTestMod')
         assert result is not None

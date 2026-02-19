@@ -34,7 +34,7 @@ class TestParseDefFile:
     <title>Test Building</title>
     <author>Test Author</author>
     <description>A test building description</description>
-</definition>''')
+</definition>''', encoding='utf-8')
         
         result = parse_def_file(def_file)
         
@@ -61,7 +61,7 @@ class TestParseDefFile:
     <mod file="\\Moria\\Content\\Tech\\Data\\Building\\DT_ConstructionRecipes.json">
         <add_row>{json.dumps(recipe_data)}</add_row>
     </mod>
-</definition>''')
+</definition>''', encoding='utf-8')
         
         result = parse_def_file(def_file)
         
@@ -86,7 +86,7 @@ class TestParseDefFile:
         <add_row>{json.dumps(construction_data)}</add_row>
         <add_imports>{json.dumps(imports_data)}</add_imports>
     </mod>
-</definition>''')
+</definition>''', encoding='utf-8')
         
         result = parse_def_file(def_file)
         
@@ -101,7 +101,7 @@ class TestParseDefFile:
         def_file = Path(self.temp_dir) / "Minimal.def"
         def_file.write_text('''<?xml version="1.0" encoding="utf-8"?>
 <definition>
-</definition>''')
+</definition>''', encoding='utf-8')
         
         result = parse_def_file(def_file)
         

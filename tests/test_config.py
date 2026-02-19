@@ -270,7 +270,7 @@ class TestLoadConfig:
         config_file.write_text('''[Game]
 install_path = C:\\Test\\Path
 install_type = Steam
-''')
+''', encoding='utf-8')
         mock_path.return_value = config_file
 
         config = load_config()
@@ -283,7 +283,7 @@ install_type = Steam
         config_file = Path(self.temp_dir) / 'config.ini'
         config_file.write_text('''[Game]
 install_path = C:\\Test\\Path
-''')
+''', encoding='utf-8')
         mock_path.return_value = config_file
 
         # First load

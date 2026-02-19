@@ -921,8 +921,13 @@ class BuildManager:  # pylint: disable=too-few-public-methods
 
         UAssetAPI requires every FName referenced in the data to exist in
         the top-level NameMap. After modifying values, new names may have
-        been introduced that aren't in the map yet. This includes both
-        NamePropertyData values and EnumPropertyData values/types.
+        been introduced that aren't in the map yet. This covers:
+        - Property Name fields (every PropertyData has a Name that is an FName)
+        - NamePropertyData values
+        - EnumPropertyData values and EnumType fields
+        - StructPropertyData StructType fields
+        - ArrayPropertyData/SetPropertyData ArrayType fields
+        - MapPropertyData KeyType/ValueType fields
         """
         name_map = json_data.get('NameMap')
         if not isinstance(name_map, list):
@@ -938,14 +943,25 @@ class BuildManager:  # pylint: disable=too-few-public-methods
                 added.append(val)
 
         def _scan(obj):
-            """Recursively scan for NamePropertyData and EnumPropertyData."""
+            """Recursively scan for all FName references in property data."""
             if isinstance(obj, dict):
                 dtype = obj.get('$type', '')
+                # Every property's Name field is an FName
+                if 'PropertyData' in dtype:
+                    _add_if_missing(obj.get('Name'))
+                # Type-specific FName fields
                 if 'NamePropertyData' in dtype:
                     _add_if_missing(obj.get('Value'))
                 elif 'EnumPropertyData' in dtype:
                     _add_if_missing(obj.get('Value'))
                     _add_if_missing(obj.get('EnumType'))
+                elif 'StructPropertyData' in dtype:
+                    _add_if_missing(obj.get('StructType'))
+                elif 'ArrayPropertyData' in dtype or 'SetPropertyData' in dtype:
+                    _add_if_missing(obj.get('ArrayType'))
+                elif 'MapPropertyData' in dtype:
+                    _add_if_missing(obj.get('KeyType'))
+                    _add_if_missing(obj.get('ValueType'))
                 for v in obj.values():
                     _scan(v)
             elif isinstance(obj, list):
@@ -1008,6 +1024,8 @@ class BuildManager:  # pylint: disable=too-few-public-methods
                     cmd,
                     capture_output=True,
                     text=True,
+                    encoding='utf-8',
+                    errors='replace',
                     timeout=BUILD_TIMEOUT,
                     creationflags=subprocess.CREATE_NO_WINDOW if hasattr(subprocess, 'CREATE_NO_WINDOW') else 0,
                     check=False
@@ -1078,6 +1096,8 @@ class BuildManager:  # pylint: disable=too-few-public-methods
                 cmd,
                 capture_output=True,
                 text=True,
+                encoding='utf-8',
+                errors='replace',
                 cwd=str(utilities_dir),
                 check=False
             )
