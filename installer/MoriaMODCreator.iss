@@ -58,6 +58,10 @@ Source: "utilities.zip"; DestDir: "{tmp}"; Flags: ignoreversion deleteafterinsta
 ; Create AppData directory structure
 Name: "{userappdata}\MoriaMODCreator"
 Name: "{userappdata}\MoriaMODCreator\cache"
+Name: "{userappdata}\MoriaMODCreator\cache\constructions"
+Name: "{userappdata}\MoriaMODCreator\cache\game"
+Name: "{userappdata}\MoriaMODCreator\cache\secrets"
+Name: "{userappdata}\MoriaMODCreator\changeconstructions"
 Name: "{userappdata}\MoriaMODCreator\changesecrets"
 Name: "{userappdata}\MoriaMODCreator\Definitions"
 Name: "{userappdata}\MoriaMODCreator\mymodfiles"
