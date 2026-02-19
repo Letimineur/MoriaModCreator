@@ -6,7 +6,7 @@ application, including:
 - Definition file browsing and selection in the left pane
 - JSON data table editing in the right pane with virtual scrolling
 - Toolbar with MOD building, import, and conversion tools
-- Buildings/Constructions view for construction definitions
+- Buildings/Secrets view for construction definitions
 - Status bar for user feedback
 
 The window uses a split-pane layout with the definitions list on the left
@@ -47,6 +47,7 @@ from src.constants import (
 from src.build_manager import BuildManager
 from src.ui.about_dialog import show_about_dialog
 from src.ui.buildings_view import BuildingsView
+from src.ui.constructions_view import ConstructionsView
 from src.ui.import_dialog import show_import_dialog
 from src.ui.mod_name_dialog import show_mod_name_dialog
 from src.ui.secrets_import_dialog import (
@@ -292,10 +293,12 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
         self.search_last_text = ""
 
         # View switching
-        self.current_view = "definitions"  # "definitions" or "buildings"
+        self.current_view = "definitions"  # "definitions", "buildings", or "constructions"
         self.definitions_view_frame = None
         self.buildings_view = None
+        self.constructions_view = None
         self.buildings_btn = None
+        self.constructions_btn = None
         self.main_area = None
 
         # Navigation buttons (initialized in _create_header)
@@ -397,10 +400,10 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
         )
         self.mod_builder_btn.pack(side="left", padx=5)
 
-        # Constructions button
+        # Secrets button
         self.buildings_btn = ctk.CTkButton(
             center_frame,
-            text="Constructions",
+            text="Secrets",
             width=120,
             height=40,
             fg_color=("gray70", "gray30"),
@@ -410,6 +413,20 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
             command=self._show_buildings_view
         )
         self.buildings_btn.pack(side="left", padx=5)
+
+        # Constructions button
+        self.constructions_btn = ctk.CTkButton(
+            center_frame,
+            text="Constructions",
+            width=120,
+            height=40,
+            fg_color=("gray70", "gray30"),
+            hover_color=("gray60", "gray40"),
+            font=ctk.CTkFont(size=13, weight="bold"),
+            corner_radius=8,
+            command=self._show_constructions_view
+        )
+        self.constructions_btn.pack(side="left", padx=5)
 
         # Separator (Advanced mode only)
         self.toolbar_sep = ctk.CTkLabel(
@@ -523,13 +540,21 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
         self._create_novice_pane(self.novice_view_frame)
         # Don't grid yet - shown when mode switches to Novice
 
-        # === BUILDINGS VIEW (hidden initially) ===
+        # === BUILDINGS/SECRETS VIEW (hidden initially) ===
         self.buildings_view = BuildingsView(
             self.main_area,
             on_status_message=self.set_status_message,
             on_back=self._show_definitions_view
         )
-        # Don't grid it yet - will be shown when Buildings button is clicked
+        # Don't grid it yet - will be shown when Secrets button is clicked
+
+        # === CONSTRUCTIONS VIEW (hidden initially) ===
+        self.constructions_view = ConstructionsView(
+            self.main_area,
+            on_status_message=self.set_status_message,
+            on_back=self._show_definitions_view
+        )
+        # Don't grid it yet - will be shown when Constructions button is clicked
 
         # Apply initial view based on default mode
         self._apply_view_mode(self.ui_mode_var.get())
@@ -696,6 +721,19 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
         )
         title_label.pack(side="left", padx=(5, 0))
 
+        # Refresh button
+        refresh_btn = ctk.CTkButton(
+            header_row,
+            text="↻",
+            width=28,
+            height=28,
+            font=ctk.CTkFont(size=16),
+            fg_color="transparent",
+            hover_color=("gray75", "gray25"),
+            command=self._refresh_novice_mod_list
+        )
+        refresh_btn.pack(side="right")
+
         # Scrollable frame for prebuilt mod list
         self.novice_mod_list = ctk.CTkScrollableFrame(
             novice_frame,
@@ -837,6 +875,18 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
             )
             cb.pack(side="left", padx=5)
 
+            # Delete button (red trash can)
+            del_btn = ctk.CTkButton(
+                row,
+                text="\U0001F5D1",
+                width=28, height=28,
+                fg_color="#F44336", hover_color="#D32F2F",
+                text_color="white",
+                font=ctk.CTkFont(size=14),
+                command=lambda p=ini_path: self._confirm_delete_novice_mod(p)
+            )
+            del_btn.pack(side="right", padx=(5, 0))
+
     def _on_novice_select_all_toggle(self):
         """Handle select-all toggle for novice mod list."""
         state = self.novice_select_all_var.get()
@@ -863,6 +913,24 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
         elif mod_stem and self.novice_last_clicked_mod == mod_stem:
             # Unchecked the currently displayed mod
             self._clear_novice_mod_info()
+
+    def _confirm_delete_novice_mod(self, ini_path: Path):
+        """Show confirmation dialog before deleting a prebuilt mod INI file."""
+        name = ini_path.stem
+        dialog = _ConfirmDefDeleteDialog(self, name, "prebuilt mod")
+        dialog.wait_window()
+
+        if dialog.result:
+            try:
+                ini_path.unlink()
+                # Clear info pane if the deleted mod was displayed
+                if self.novice_last_clicked_mod == name:
+                    self._clear_novice_mod_info()
+                    self.novice_last_clicked_mod = None
+                self._refresh_novice_mod_list()
+                self.set_status_message(f"Deleted prebuilt mod: {name}")
+            except OSError as e:
+                self.set_status_message(f"Error deleting {name}: {e}", is_error=True)
 
     def _update_novice_mod_info(self, mod_stem: str):
         """Read mod INI and display metadata in the right pane."""
@@ -3755,21 +3823,25 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
         Args:
             mode: "Novice" or "Advanced".
         """
+        # Hide all optional toolbar buttons first
+        self.mod_builder_btn.pack_forget()
+        self.buildings_btn.pack_forget()
+        self.constructions_btn.pack_forget()
+        self.toolbar_sep.pack_forget()
+        self.import_btn.pack_forget()
+        self.secrets_btn.pack_forget()
+        self.combined_import_btn.pack_forget()
+
         if mode == "Novice":
-            # Hide advanced buttons
-            self.toolbar_sep.pack_forget()
-            self.import_btn.pack_forget()
-            self.secrets_btn.pack_forget()
-            # Show combined import button
-            self.combined_import_btn.pack(side="left", padx=5)
+            # Show only centered combined import button
+            self.combined_import_btn.pack(padx=5)
         else:
-            # Hide novice button
-            self.combined_import_btn.pack_forget()
-            # Show advanced buttons
+            # Show nav buttons, separator, and combined import button
+            self.mod_builder_btn.pack(side="left", padx=5)
+            self.buildings_btn.pack(side="left", padx=5)
+            self.constructions_btn.pack(side="left", padx=5)
             self.toolbar_sep.pack(side="left", padx=10)
-            self.import_btn.pack(side="left", padx=5)
-            self.secrets_btn.pack(side="left", padx=5)
-            self._update_secrets_btn_state()
+            self.combined_import_btn.pack(side="left", padx=5)
 
     def _run_combined_import(self):
         """Run the combined import process (Novice mode)."""
@@ -3882,50 +3954,79 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
     # =========================================================================
     # VIEW SWITCHING
     # =========================================================================
-    # These methods handle switching between the main Definitions view and
-    # the Buildings/Constructions view.
+    # These methods handle switching between the Definitions view,
+    # the Secrets view, and the Constructions view.
     # =========================================================================
 
-    def _show_buildings_view(self):
-        """
-        Switch to the Constructions view.
-
-        If already in buildings view, toggles back to definitions view.
-        """
-        if self.current_view == "buildings":
-            # Already in buildings view, switch back to definitions
-            self._show_definitions_view()
-            return
-
-        self.current_view = "buildings"
-
-        # Hide definitions view and novice view
+    def _hide_all_views(self):
+        """Hide all view frames."""
         if self.definitions_view_frame:
             self.definitions_view_frame.grid_forget()
         if self.novice_view_frame:
             self.novice_view_frame.grid_forget()
+        if self.buildings_view:
+            self.buildings_view.grid_forget()
+        if self.constructions_view:
+            self.constructions_view.grid_forget()
 
-        # Show buildings view
+    def _reset_nav_buttons(self):
+        """Reset all navigation buttons to inactive state."""
+        inactive = ("gray70", "gray30")
+        if self.mod_builder_btn:
+            self.mod_builder_btn.configure(fg_color=inactive)
+        if self.buildings_btn:
+            self.buildings_btn.configure(fg_color=inactive)
+        if self.constructions_btn:
+            self.constructions_btn.configure(fg_color=inactive)
+
+    def _show_buildings_view(self):
+        """
+        Switch to the Secrets view.
+
+        If already in buildings view, toggles back to definitions view.
+        """
+        if self.current_view == "buildings":
+            self._show_definitions_view()
+            return
+
+        self.current_view = "buildings"
+        self._hide_all_views()
+
         if self.buildings_view:
             self.buildings_view.grid(row=0, column=0, columnspan=2, sticky="nsew")
 
-        # Update button appearances - Constructions active, Mod Builder inactive
+        self._reset_nav_buttons()
         if self.buildings_btn:
             self.buildings_btn.configure(fg_color=("#3B8ED0", "#1F6AA5"))
-        if self.mod_builder_btn:
-            self.mod_builder_btn.configure(fg_color=("gray70", "gray30"))
+
+        self.set_status_message("Secrets view active")
+
+    def _show_constructions_view(self):
+        """
+        Switch to the Constructions view.
+
+        If already in constructions view, toggles back to definitions view.
+        """
+        if self.current_view == "constructions":
+            self._show_definitions_view()
+            return
+
+        self.current_view = "constructions"
+        self._hide_all_views()
+
+        if self.constructions_view:
+            self.constructions_view.grid(row=0, column=0, columnspan=2, sticky="nsew")
+
+        self._reset_nav_buttons()
+        if self.constructions_btn:
+            self.constructions_btn.configure(fg_color=("#3B8ED0", "#1F6AA5"))
 
         self.set_status_message("Constructions view active")
 
     def _show_definitions_view(self):
         """Switch back to the Mod Builder view."""
         self.current_view = "definitions"
-
-        # Hide buildings view and novice view
-        if self.buildings_view:
-            self.buildings_view.grid_forget()
-        if self.novice_view_frame:
-            self.novice_view_frame.grid_forget()
+        self._hide_all_views()
 
         # Show the appropriate view based on UI mode
         mode = self.ui_mode_var.get() if self.ui_mode_var else "Advanced"
@@ -3936,10 +4037,8 @@ class MainWindow(ctk.CTk, TkinterDnD.DnDWrapper if HAS_TKDND else object):
             if self.definitions_view_frame:
                 self.definitions_view_frame.grid(row=0, column=0, columnspan=2, sticky="nsew")
 
-        # Update button appearances - Mod Builder active, Constructions inactive
+        self._reset_nav_buttons()
         if self.mod_builder_btn:
             self.mod_builder_btn.configure(fg_color=("#3B8ED0", "#1F6AA5"))
-        if self.buildings_btn:
-            self.buildings_btn.configure(fg_color=("gray70", "gray30"))
 
         self.clear_status_message()

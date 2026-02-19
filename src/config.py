@@ -73,6 +73,11 @@ def get_default_changesecrets_dir() -> Path:
     return get_appdata_dir() / 'changesecrets'
 
 
+def get_default_changeconstructions_dir() -> Path:
+    """Get the default Change Constructions directory for construction change sets."""
+    return get_appdata_dir() / 'changeconstructions'
+
+
 def get_config_path() -> Path:
     """Get the path to the config.ini file."""
     return get_appdata_dir() / 'config.ini'

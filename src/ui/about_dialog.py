@@ -1,17 +1,49 @@
 """Help About dialog for Moria MOD Creator."""
 
+import configparser
+import re
 from pathlib import Path
 
 import customtkinter as ctk
 from PIL import Image
 
+from src.config import get_appdata_dir
+
 # Application info
 APP_NAME = "Moria MOD Creator"
-APP_VERSION = "0.8 Beta"
+APP_VERSION = "0.9"
 APP_DATE = "February 2026"
 APP_AUTHOR = "John B Owens II"
 GITHUB_URL = "https://github.com/jbowensii/MoriaModCreator"
 LICENSE_URL = "https://github.com/jbowensii/MoriaModCreator?tab=MIT-1-ov-file#"
+
+
+def _collect_contributors() -> list[str]:
+    """Collect unique contributor names from prebuilt mod INI files.
+
+    Reads the Authors field from [ModInfo] in each INI, splits by comma,
+    strips parenthetical notes, deduplicates, and returns sorted list.
+    """
+    prebuilt_dir = get_appdata_dir() / 'prebuilt modfiles'
+    authors = set()
+
+    if not prebuilt_dir.exists():
+        return []
+
+    for ini_file in prebuilt_dir.glob('*.ini'):
+        try:
+            config = configparser.ConfigParser()
+            config.read(ini_file, encoding='utf-8')
+            raw = config.get('ModInfo', 'Authors', fallback='')
+            for part in raw.split(','):
+                # Remove anything in parentheses and strip whitespace
+                name = re.sub(r'\([^)]*\)', '', part).strip()
+                if name:
+                    authors.add(name)
+        except (configparser.Error, OSError):
+            continue
+
+    return sorted(authors, key=str.lower)
 
 
 class AboutDialog(ctk.CTkToplevel):
@@ -114,22 +146,30 @@ class AboutDialog(ctk.CTkToplevel):
             text="About",
             width=80,
             fg_color="#c01c28",
-            hover_color="#a01020"
+            hover_color="#a01020",
+            command=lambda: self._show_tab("about")
         )
         self._disclaimer_btn = ctk.CTkButton(
             btn_frame,
             text="Disclaimer",
             width=80,
             fg_color="#c01c28",
-            hover_color="#a01020"
+            hover_color="#a01020",
+            command=lambda: self._show_tab("disclaimer")
         )
         self._credits_btn = ctk.CTkButton(
             btn_frame,
             text="Credits",
             width=80,
             fg_color="#c01c28",
-            hover_color="#a01020"
+            hover_color="#a01020",
+            command=lambda: self._show_tab("credits")
         )
+
+        # Pack tab buttons
+        self._about_btn.pack(side="left", padx=(0, 5))
+        self._disclaimer_btn.pack(side="left", padx=5)
+        self._credits_btn.pack(side="left", padx=5)
 
         # Close button on the right
         close_btn = ctk.CTkButton(
@@ -143,13 +183,12 @@ class AboutDialog(ctk.CTkToplevel):
         close_btn.pack(side="right")
 
         # Content area (scrollable)
-        self._text_frame = ctk.CTkFrame(
+        self._text_frame = ctk.CTkScrollableFrame(
             self._content_frame,
             width=450,
-            height=350,
             fg_color="transparent"
         )
-        self._text_frame.pack(fill="y", padx=10, pady=10)
+        self._text_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
         # Show about tab by default
         self._show_tab("about")
@@ -311,42 +350,36 @@ class AboutDialog(ctk.CTkToplevel):
         )
         title.pack(pady=(10, 20))
 
-        # Community contributors header
+        # Community contributors - dynamically collected from prebuilt mod INI files
+        contributors = _collect_contributors()
+
         community_label = ctk.CTkLabel(
             self._text_frame,
-            text="Community Contributors (Nexus Mods):",
+            text="Community Contributors:",
             font=ctk.CTkFont(size=13, weight="bold")
         )
         community_label.pack(anchor="w", padx=10, pady=(0, 5))
 
-        # Contributor links - alphabetical order
-        contributors = [
-            ("Deathmajesty", "https://www.nexusmods.com/profile/Deathmajesty?gameId=5829"),
-            ("kenuaena", "https://www.nexusmods.com/profile/kenuaena?gameId=5829"),
-            ("momenaya", "https://www.nexusmods.com/profile/momenaya?gameId=5829"),
-            ("sqitey", "https://www.nexusmods.com/profile/sqitey?gameId=5829"),
-            ("stiffmeds", "https://www.nexusmods.com/profile/stiffmeds?gameId=5829"),
-            ("TheRareKiwi", "https://www.nexusmods.com/profile/TheRareKiwi?gameId=5829"),
-            ("tobiichiro", "https://www.nexusmods.com/profile/tobiichiro?gameId=5829"),
-            ("Vardigard", "https://www.nexusmods.com/profile/Vardigard?gameId=5829"),
-        ]
+        if contributors:
+            for name in contributors:
+                contrib_frame = ctk.CTkFrame(self._text_frame, fg_color="transparent")
+                contrib_frame.pack(anchor="w", padx=20, pady=1)
 
-        for name, url in contributors:
-            contrib_frame = ctk.CTkFrame(self._text_frame, fg_color="transparent")
-            contrib_frame.pack(anchor="w", padx=20, pady=1)
+                bullet = ctk.CTkLabel(contrib_frame, text="•", font=ctk.CTkFont(size=12))
+                bullet.pack(side="left")
 
-            bullet = ctk.CTkLabel(contrib_frame, text="•", font=ctk.CTkFont(size=12))
-            bullet.pack(side="left")
-
-            contrib_link = ctk.CTkLabel(
-                contrib_frame,
-                text=name,
-                font=ctk.CTkFont(size=12, underline=True),
-                text_color="#3584e4",
-                cursor="hand2"
-            )
-            contrib_link.pack(side="left", padx=(5, 0))
-            contrib_link.bind("<Button-1>", lambda e, u=url: self._open_url(u))
+                ctk.CTkLabel(
+                    contrib_frame,
+                    text=name,
+                    font=ctk.CTkFont(size=12),
+                ).pack(side="left", padx=(5, 0))
+        else:
+            ctk.CTkLabel(
+                self._text_frame,
+                text="No prebuilt mod files found",
+                font=ctk.CTkFont(size=12),
+                text_color="gray"
+            ).pack(anchor="w", padx=20, pady=5)
 
         # Separator
         sep1 = ctk.CTkFrame(self._text_frame, height=1, fg_color="gray50")

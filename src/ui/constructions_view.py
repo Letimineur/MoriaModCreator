@@ -1,4 +1,4 @@
-"""Buildings view for creating and editing construction objects from .def files.
+"""Constructions view for browsing and editing construction objects from game data.
 
 This module provides the UI for the Buildings/Constructions tab, allowing users to:
 - Browse and select .def files containing construction definitions
@@ -13,7 +13,7 @@ extracting fields for editing, and rebuilding valid JSON for saving.
 Classes:
     FieldTooltip: Hover tooltip for form field labels
     AutocompleteEntry: Entry widget with dropdown autocomplete for comma-separated values
-    BuildingsView: Main view frame for building/construction management
+    ConstructionsView: Main view frame for constructions management
 
 Key Functions:
     parse_def_file: Parse .def XML and extract recipe/construction JSON
@@ -35,7 +35,7 @@ from PIL import Image, ImageDraw
 
 from src.config import (
     get_appdata_dir, get_buildings_dir, get_constructions_dir,
-    get_default_changesecrets_dir,
+    get_default_changeconstructions_dir,
 )
 from src.ui.filterable_combobox import FilterableComboBox
 
@@ -244,16 +244,15 @@ CACHE_FILENAME = "buildings_cache.ini"
 def _scan_construction_recipes_json() -> dict:
     """Scan DT_ConstructionRecipes.json for construction names and other values.
 
-    Scans both output/jsondata and Secrets Source/jsondata paths.
+    Scans output/jsondata paths only (game data).
     Returns a dict with categories -> set of values.
     """
     collected = defaultdict(set)
 
-    # Check both output and Secrets Source paths
+    # Check game output paths
     building_subpath = Path('Moria') / 'Content' / 'Tech' / 'Data' / 'Building'
     candidate_paths = [
         get_appdata_dir() / 'output' / 'jsondata' / building_subpath / 'DT_ConstructionRecipes.json',
-        get_appdata_dir() / 'Secrets Source' / 'jsondata' / building_subpath / 'DT_ConstructionRecipes.json',
     ]
 
     for recipes_path in candidate_paths:
@@ -267,7 +266,6 @@ def _scan_construction_recipes_json() -> dict:
     # Also scan DT_Constructions.json for Actors
     constructions_paths = [
         get_appdata_dir() / 'output' / 'jsondata' / building_subpath / 'DT_Constructions.json',
-        get_appdata_dir() / 'Secrets Source' / 'jsondata' / building_subpath / 'DT_Constructions.json',
     ]
     for constr_path in constructions_paths:
         if not constr_path.exists():
@@ -1530,8 +1528,8 @@ class AutocompleteEntry(ctk.CTkFrame):
 # =============================================================================
 
 
-class _ConfirmSecretsDeleteDialog(ctk.CTkToplevel):
-    """Confirmation dialog for deleting a change secrets set."""
+class _ConfirmConstructionsDeleteDialog(ctk.CTkToplevel):
+    """Confirmation dialog for deleting a change constructions set."""
 
     def __init__(self, parent, prefix_name: str):
         super().__init__(parent)
@@ -1591,13 +1589,13 @@ class _ConfirmSecretsDeleteDialog(ctk.CTkToplevel):
         self.destroy()
 
 
-class _ChangeSecretsDialog(ctk.CTkToplevel):
-    """Dialog for selecting or creating a secrets change set prefix."""
+class _ChangeConstructionsDialog(ctk.CTkToplevel):
+    """Dialog for selecting or creating a constructions change set prefix."""
 
     def __init__(self, parent, current_prefix: str = ""):
         super().__init__(parent)
 
-        self.title("Change Secrets")
+        self.title("Change Constructions")
         self.geometry("450x420")
         self.resizable(False, False)
 
@@ -1621,11 +1619,11 @@ class _ChangeSecretsDialog(ctk.CTkToplevel):
         self.protocol("WM_DELETE_WINDOW", self._on_cancel)
 
     def _get_existing_prefixes(self) -> list[str]:
-        """Get list of existing change secrets directories."""
-        secrets_dir = get_default_changesecrets_dir()
-        if not secrets_dir.exists():
+        """Get list of existing change constructions directories."""
+        constructions_dir = get_default_changeconstructions_dir()
+        if not constructions_dir.exists():
             return []
-        return sorted(item.name for item in secrets_dir.iterdir() if item.is_dir())
+        return sorted(item.name for item in constructions_dir.iterdir() if item.is_dir())
 
     def _create_widgets(self):
         """Create the dialog widgets."""
@@ -1638,7 +1636,7 @@ class _ChangeSecretsDialog(ctk.CTkToplevel):
         # Existing change sets section
         ctk.CTkLabel(
             main_frame,
-            text="Change Secrets:",
+            text="Change Constructions:",
             font=ctk.CTkFont(size=14, weight="bold"),
             anchor="w"
         ).grid(row=0, column=0, sticky="w", pady=(0, 5))
@@ -1655,7 +1653,7 @@ class _ChangeSecretsDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             prefix_frame,
-            text="Change Secret Prefix:",
+            text="Change Construction Prefix:",
             font=ctk.CTkFont(size=14, weight="bold")
         ).grid(row=0, column=0, sticky="w", padx=(0, 10))
 
@@ -1732,10 +1730,10 @@ class _ChangeSecretsDialog(ctk.CTkToplevel):
 
     def _confirm_delete_prefix(self, prefix_name: str):
         """Show confirmation dialog before deleting a change set."""
-        confirm = _ConfirmSecretsDeleteDialog(self, prefix_name)
+        confirm = _ConfirmConstructionsDeleteDialog(self, prefix_name)
         confirm.wait_window()
         if confirm.result:
-            prefix_dir = get_default_changesecrets_dir() / prefix_name
+            prefix_dir = get_default_changeconstructions_dir() / prefix_name
             if prefix_dir.exists():
                 shutil.rmtree(prefix_dir)
             if self.prefix_var.get() == prefix_name:
@@ -1758,8 +1756,8 @@ class _ChangeSecretsDialog(ctk.CTkToplevel):
             return
 
         # Create the change set directory
-        secrets_dir = get_default_changesecrets_dir()
-        prefix_dir = secrets_dir / prefix_name
+        constructions_dir = get_default_changeconstructions_dir()
+        prefix_dir = constructions_dir / prefix_name
         try:
             prefix_dir.mkdir(parents=True, exist_ok=True)
             self.result = prefix_name
@@ -1768,7 +1766,7 @@ class _ChangeSecretsDialog(ctk.CTkToplevel):
             self.prefix_entry.configure(border_color="red")
 
 
-class BuildingsView(ctk.CTkFrame):
+class ConstructionsView(ctk.CTkFrame):
     """
     Main view for managing building/construction objects from .def files.
 
@@ -1854,7 +1852,7 @@ class BuildingsView(ctk.CTkFrame):
         # View mode: 'definitions' (default .def files), 'buildings', 'weapons', 'armor'
         self.view_mode = 'definitions'
 
-        # Secrets data holders (loaded from Secrets Source jsondata)
+        # Game data holders (loaded from game output jsondata)
         self.secrets_recipes = {}  # {recipe_name: recipe_data}
         self.secrets_constructions = {}  # {construction_name: construction_data}
         self.game_recipe_names = set()  # Recipe names from game files (to filter out)
@@ -1864,14 +1862,14 @@ class BuildingsView(ctk.CTkFrame):
         self.string_table = {}
 
         # Button and widget refs created in _create_left_pane_buttons
-        self.include_secrets_var = None
-        self.include_secrets_cb = None
+        self.include_modifications_var = None
+        self.include_modifications_cb = None
         self.tools_btn = None
         self.flora_btn = None
         self.loot_btn = None
         self.items_btn = None
-        self.secrets_prefix_var = None
-        self.secrets_prefix_entry = None
+        self.constructions_prefix_var = None
+        self.constructions_prefix_entry = None
 
         # Widget references created in _create_widgets helper methods
         self.buildings_btn = None
@@ -1889,8 +1887,8 @@ class BuildingsView(ctk.CTkFrame):
         self.footer_revert_btn = None
 
         self._create_widgets()
-        # Load persisted secrets prefix
-        self._load_secrets_prefix()
+        # Load persisted constructions prefix
+        self._load_constructions_prefix()
         # Defer scan until after main window is fully initialized
         self.after(100, self._scan_and_refresh)
 
@@ -1899,8 +1897,8 @@ class BuildingsView(ctk.CTkFrame):
     # -------------------------------------------------------------------------
 
     def _get_buildings_subdir(self) -> Path:
-        """Get the Secrets subdirectory under the buildings dir."""
-        subdir = get_buildings_dir() / 'Secrets'
+        """Get the Constructions subdirectory under the buildings dir."""
+        subdir = get_buildings_dir() / 'Constructions'
         subdir.mkdir(parents=True, exist_ok=True)
         return subdir
 
@@ -1944,6 +1942,7 @@ class BuildingsView(ctk.CTkFrame):
 
         # Load string tables for display name resolution
         self.string_table = self._load_string_table()
+        self._resolve_display_names_from_definitions()
 
         # Refresh the building list to show scanned files
         self._refresh_building_list()
@@ -1976,8 +1975,8 @@ class BuildingsView(ctk.CTkFrame):
             self.def_search_var.set("")
 
         # Clear prefix text box
-        if hasattr(self, 'secrets_prefix_var') and self.secrets_prefix_var:
-            self.secrets_prefix_var.set("")
+        if hasattr(self, 'constructions_prefix_var') and self.constructions_prefix_var:
+            self.constructions_prefix_var.set("")
 
     def _get_options(self, key: str, defaults: list[str] | None = None) -> list[str]:
         """
@@ -2119,17 +2118,17 @@ class BuildingsView(ctk.CTkFrame):
         )
         self.items_btn.grid(row=0, column=1, sticky="ew", padx=2)
 
-        # "Include Secret Constructions" checkbox + Refresh button
+        # "Include Construction Modifications" checkbox + Refresh button
         top_row = ctk.CTkFrame(list_frame, fg_color="transparent")
         top_row.pack(fill="x", padx=10, pady=(5, 2))
 
-        self.include_secrets_var = ctk.BooleanVar(value=False)
-        self.include_secrets_cb = ctk.CTkCheckBox(
-            top_row, text="Include Secret Constructions",
-            variable=self.include_secrets_var,
+        self.include_modifications_var = ctk.BooleanVar(value=False)
+        self.include_modifications_cb = ctk.CTkCheckBox(
+            top_row, text="Include Construction Modifications",
+            variable=self.include_modifications_var,
             font=ctk.CTkFont(size=12),
         )
-        self.include_secrets_cb.pack(side="left")
+        self.include_modifications_cb.pack(side="left")
 
         refresh_btn = ctk.CTkButton(
             top_row, text="↻", width=28, height=28,
@@ -2192,35 +2191,35 @@ class BuildingsView(ctk.CTkFrame):
         )
         self.count_label.pack(padx=10, anchor="w", pady=(0, 5))
 
-        # Bottom section with Change Secrets and Build button
+        # Bottom section with Change Constructions and Build button
         bottom_frame = ctk.CTkFrame(list_frame, fg_color="transparent")
         bottom_frame.pack(fill="x", padx=10, pady=(5, 10))
 
-        # Left side: "Change Secrets" button and text field
+        # Left side: "Change Constructions" button and text field
         left_bottom = ctk.CTkFrame(bottom_frame, fg_color="transparent")
         left_bottom.pack(side="left", fill="x", expand=True)
 
-        change_secrets_btn = ctk.CTkButton(
+        change_constructions_btn = ctk.CTkButton(
             left_bottom,
-            text="Change Secrets",
+            text="Change Constructions",
             fg_color="#2196F3",
             hover_color="#1976D2",
             text_color="white",
             font=ctk.CTkFont(weight="bold"),
             width=130,
-            command=self._on_change_secrets_click
+            command=self._on_change_constructions_click
         )
-        change_secrets_btn.pack(side="left")
+        change_constructions_btn.pack(side="left")
 
-        self.secrets_prefix_var = ctk.StringVar(value="")
-        self.secrets_prefix_entry = ctk.CTkEntry(
+        self.constructions_prefix_var = ctk.StringVar(value="")
+        self.constructions_prefix_entry = ctk.CTkEntry(
             left_bottom,
-            textvariable=self.secrets_prefix_var,
+            textvariable=self.constructions_prefix_var,
             width=120,
             placeholder_text="No prefix...",
             state="disabled"
         )
-        self.secrets_prefix_entry.pack(side="left", padx=(10, 0), fill="x", expand=True)
+        self.constructions_prefix_entry.pack(side="left", padx=(10, 0), fill="x", expand=True)
 
         # Right side: Build button
         build_btn = ctk.CTkButton(
@@ -2343,7 +2342,7 @@ class BuildingsView(ctk.CTkFrame):
     def _revert_changes(self):
         """Revert form to the original version by reloading from source files.
 
-        For secrets items, this reads from the original Secrets Source files
+        For secrets items, this reads from the original game output files
         (not cache), writes those original rows back to cache, and unchecks
         the item in the left pane list.
         """
@@ -2352,7 +2351,7 @@ class BuildingsView(ctk.CTkFrame):
         elif self.current_secrets_recipe_name:
             recipe_name = self.current_secrets_recipe_name
 
-            # Read original rows from Secrets Source (not cache)
+            # Read original rows from game output (not cache)
             original_recipe = self._get_row_by_name(
                 self._get_secrets_recipes_path(), recipe_name)
             original_construction = self._get_row_by_name(
@@ -2544,9 +2543,9 @@ class BuildingsView(ctk.CTkFrame):
             self._save_construction_pack_to_ini()
 
     def _on_refresh_cache_click(self):
-        """Handle Refresh button - delete cache and re-copy from Secrets Source."""
+        """Handle Refresh button - delete cache and re-copy from game output."""
         self._refresh_cache()
-        self._set_status("Cache refreshed from Secrets Source")
+        self._set_status("Cache refreshed from game output")
 
         # Reload the current view if one is active
         loader_map = {
@@ -2599,19 +2598,19 @@ class BuildingsView(ctk.CTkFrame):
         with open(ini_path, 'w', encoding='utf-8') as f:
             config.write(f)
 
-    def _on_change_secrets_click(self):
-        """Handle Change Secrets button click - open dialog to select/create prefix."""
+    def _on_change_constructions_click(self):
+        """Handle Change Constructions button click - open dialog to select/create prefix."""
         # Save current states before switching
         self._save_checked_states_to_ini()
 
-        current_prefix = self.secrets_prefix_var.get()
-        dialog = _ChangeSecretsDialog(self.winfo_toplevel(), current_prefix)
+        current_prefix = self.constructions_prefix_var.get()
+        dialog = _ChangeConstructionsDialog(self.winfo_toplevel(), current_prefix)
         dialog.wait_window()
 
         if dialog.result is not None:
-            self.secrets_prefix_var.set(dialog.result)
+            self.constructions_prefix_var.set(dialog.result)
             # Persist the selected prefix
-            self._save_secrets_prefix()
+            self._save_constructions_prefix()
             # Reload the current view to use the new change set's cache/INI
             self._reload_current_view()
 
@@ -2757,7 +2756,7 @@ class BuildingsView(ctk.CTkFrame):
                 if not changes:
                     continue
 
-                prefix = self.secrets_prefix_var.get() if hasattr(self, 'secrets_prefix_var') else ""
+                prefix = self.constructions_prefix_var.get() if hasattr(self, 'constructions_prefix_var') else ""
                 prefix_str = f"{prefix}_" if prefix else ""
                 def_name = f"{prefix_str}MODIFY {filename}"
 
@@ -2790,7 +2789,7 @@ class BuildingsView(ctk.CTkFrame):
 
                 # Also write to change set directory (for persistence)
                 if prefix:
-                    set_dir = get_default_changesecrets_dir() / prefix / "definitions" / output_subdir
+                    set_dir = get_default_changeconstructions_dir() / prefix / "definitions" / output_subdir
                     set_dir.mkdir(parents=True, exist_ok=True)
                     set_file = set_dir / f"{def_name}.def"
                     with open(set_file, 'w', encoding='utf-8') as f:
@@ -2843,7 +2842,7 @@ class BuildingsView(ctk.CTkFrame):
 
         Args:
             row_name: The row Name (used as the item in <change>)
-            orig_row: Original row dict from Secrets Source
+            orig_row: Original row dict from game output
             cache_row: Modified row dict from cache
 
         Returns:
@@ -4506,13 +4505,13 @@ class BuildingsView(ctk.CTkFrame):
                 if enabled_var:
                     enabled_var.set('ERowEnabledState::Disabled')
         else:
-            # Make visible: restore original values from Secrets Source
+            # Make visible: restore original values from game output
             self._restore_original_visibility()
 
         self._save_changes()
 
     def _restore_original_visibility(self):
-        """Restore the current item's visibility fields from Secrets Source."""
+        """Restore the current item's visibility fields from game output."""
         name = self.current_secrets_recipe_name
         if not name:
             return
@@ -4608,7 +4607,7 @@ class BuildingsView(ctk.CTkFrame):
         """Bulk-set recipe unlock types and EnabledState for all items."""
         name_set = set(item_names)
 
-        # Load originals from Secrets Source for restoring
+        # Load originals from game output for restoring
         orig_recipe_rows = {}
         orig_def_rows = {}
         if not make_hidden:
@@ -5303,15 +5302,15 @@ class BuildingsView(ctk.CTkFrame):
     def _get_cache_dir(self) -> Path:
         """Get path to the cache directory for the current view mode.
 
-        Uses a 'secrets' subdirectory to keep Secrets cache separate from
-        Constructions cache. If a change secrets prefix is active, returns
+        Uses a 'constructions' subdirectory to keep Constructions cache separate
+        from Secrets cache. If a change constructions prefix is active, returns
         the per-change-set cache directory instead.
         """
-        prefix = self.secrets_prefix_var.get() if hasattr(self, 'secrets_prefix_var') else ""
+        prefix = self.constructions_prefix_var.get() if hasattr(self, 'constructions_prefix_var') else ""
         mode = self.view_mode or 'buildings'
         if prefix:
-            return get_default_changesecrets_dir() / prefix / mode
-        return get_appdata_dir() / 'cache' / 'secrets' / mode
+            return get_default_changeconstructions_dir() / prefix / mode
+        return get_appdata_dir() / 'cache' / 'constructions' / mode
 
     def _get_cache_recipes_path(self) -> Path:
         """Get path to cached recipes JSON for the current view mode."""
@@ -5335,7 +5334,7 @@ class BuildingsView(ctk.CTkFrame):
         return self._get_cache_dir() / defs_map.get(self.view_mode, 'DT_Constructions.json')
 
     def _ensure_cache_files(self):
-        """Copy Secrets Source JSONs to cache if not already cached.
+        """Copy game output JSONs to cache if not already cached.
 
         Uses view_mode to determine the correct source files and cache directory.
         Only copies if cache files don't exist yet (use _refresh_cache to force).
@@ -5343,22 +5342,22 @@ class BuildingsView(ctk.CTkFrame):
         cache_dir = self._get_cache_dir()
         cache_dir.mkdir(parents=True, exist_ok=True)
 
-        # Cache recipes (if this mode has them)
-        src_recipes = self._get_secrets_recipes_path()
+        # Cache recipes from game output (if this mode has them)
+        src_recipes = self._get_game_recipes_path()
         cache_recipes = self._get_cache_recipes_path()
         if src_recipes and cache_recipes and src_recipes.exists() and not cache_recipes.exists():
             shutil.copy2(src_recipes, cache_recipes)
-            logger.info("Cached %s", cache_recipes.name)
+            logger.info("Cached %s from game output", cache_recipes.name)
 
-        # Cache definitions
-        src_defs = self._get_secrets_constructions_path()
+        # Cache definitions from game output
+        src_defs = self._get_game_constructions_path()
         cache_defs = self._get_cache_constructions_path()
         if src_defs.exists() and not cache_defs.exists():
             shutil.copy2(src_defs, cache_defs)
-            logger.info("Cached %s", cache_defs.name)
+            logger.info("Cached %s from game output", cache_defs.name)
 
     def _refresh_cache(self):
-        """Force-refresh cache by deleting old cache and re-copying from Secrets Source.
+        """Force-refresh cache by deleting old cache and re-copying from game output.
 
         Preserves .ini files (e.g. checked_items.ini) across refreshes.
         """
@@ -5373,40 +5372,40 @@ class BuildingsView(ctk.CTkFrame):
 
         cache_dir.mkdir(parents=True, exist_ok=True)
 
-        # Refresh recipes (if this mode has them)
-        src_recipes = self._get_secrets_recipes_path()
+        # Refresh recipes from game output (if this mode has them)
+        src_recipes = self._get_game_recipes_path()
         cache_recipes = self._get_cache_recipes_path()
         if src_recipes and cache_recipes and src_recipes.exists():
             shutil.copy2(src_recipes, cache_recipes)
-            logger.info("Refreshed cache: %s", src_recipes.name)
+            logger.info("Refreshed cache from game: %s", src_recipes.name)
 
-        # Refresh definitions
-        src_defs = self._get_secrets_constructions_path()
+        # Refresh definitions from game output
+        src_defs = self._get_game_constructions_path()
         if src_defs.exists():
             shutil.copy2(src_defs, self._get_cache_constructions_path())
-            logger.info("Refreshed cache: %s", src_defs.name)
+            logger.info("Refreshed cache from game: %s", src_defs.name)
 
-    def _load_secrets_prefix(self):
-        """Load the persisted secrets prefix from changesecrets config."""
-        config_file = get_default_changesecrets_dir() / 'current_prefix.ini'
+    def _load_constructions_prefix(self):
+        """Load the persisted constructions prefix from changeconstructions config."""
+        config_file = get_default_changeconstructions_dir() / 'current_prefix.ini'
         if config_file.exists():
             try:
                 config = configparser.ConfigParser()
                 config.read(config_file, encoding='utf-8')
-                prefix = config.get('ChangeSecrets', 'current_prefix', fallback='')
-                if hasattr(self, 'secrets_prefix_var'):
-                    self.secrets_prefix_var.set(prefix)
+                prefix = config.get('ChangeConstructions', 'current_prefix', fallback='')
+                if hasattr(self, 'constructions_prefix_var'):
+                    self.constructions_prefix_var.set(prefix)
             except (configparser.Error, OSError):
                 pass
 
-    def _save_secrets_prefix(self):
-        """Save the current secrets prefix to changesecrets config."""
-        secrets_dir = get_default_changesecrets_dir()
-        secrets_dir.mkdir(parents=True, exist_ok=True)
-        config_file = secrets_dir / 'current_prefix.ini'
+    def _save_constructions_prefix(self):
+        """Save the current constructions prefix to changeconstructions config."""
+        constructions_dir = get_default_changeconstructions_dir()
+        constructions_dir.mkdir(parents=True, exist_ok=True)
+        config_file = constructions_dir / 'current_prefix.ini'
         config = configparser.ConfigParser()
-        config['ChangeSecrets'] = {
-            'current_prefix': self.secrets_prefix_var.get() if hasattr(self, 'secrets_prefix_var') else ''
+        config['ChangeConstructions'] = {
+            'current_prefix': self.constructions_prefix_var.get() if hasattr(self, 'constructions_prefix_var') else ''
         }
         with open(config_file, 'w', encoding='utf-8') as f:
             config.write(f)
@@ -5455,27 +5454,20 @@ class BuildingsView(ctk.CTkFrame):
         return set()
 
     def _get_secrets_recipes_path(self) -> Path | None:
-        """Get path to recipes JSON in Secrets Source for the current view mode."""
-        base = get_appdata_dir() / 'Secrets Source' / 'jsondata' / 'Moria' / 'Content'
-        if self.view_mode in ('weapons', 'armor', 'tools', 'items'):
-            return base / 'Tech' / 'Data' / 'Items' / 'DT_ItemRecipes.json'
-        if self.view_mode == 'buildings':
-            return base / 'Tech' / 'Data' / 'Building' / 'DT_ConstructionRecipes.json'
-        return None  # flora, loot have no recipes
+        """Get path to recipes JSON in game output for the current view mode.
+
+        Note: In Constructions view, this returns the same as _get_game_recipes_path
+        since we only work with game data.
+        """
+        return self._get_game_recipes_path()
 
     def _get_secrets_constructions_path(self) -> Path:
-        """Get path to definitions JSON in Secrets Source for the current view mode."""
-        base = get_appdata_dir() / 'Secrets Source' / 'jsondata' / 'Moria' / 'Content'
-        defs_map = {
-            'buildings': 'Tech/Data/Building/DT_Constructions.json',
-            'weapons': 'Tech/Data/Items/DT_Weapons.json',
-            'armor': 'Tech/Data/Items/DT_Armor.json',
-            'tools': 'Tech/Data/Items/DT_Tools.json',
-            'items': 'Tech/Data/Items/DT_Items.json',
-            'flora': 'Tech/Data/Gameworld/DT_Moria_Flora.json',
-            'loot': 'Character/AI/DT_Loot.json',
-        }
-        return base / defs_map.get(self.view_mode, 'Tech/Data/Building/DT_Constructions.json')
+        """Get path to definitions JSON in game output for the current view mode.
+
+        Note: In Constructions view, this returns the same as _get_game_constructions_path
+        since we only work with game data.
+        """
+        return self._get_game_constructions_path()
 
     def _get_game_recipes_path(self) -> Path | None:
         """Get path to recipes JSON in game output for the current view mode."""
@@ -5501,15 +5493,16 @@ class BuildingsView(ctk.CTkFrame):
         return base / defs_map.get(self.view_mode, 'Tech/Data/Building/DT_Constructions.json')
 
     def _get_string_tables_dir(self) -> Path:
-        """Get path to the StringTables directory in Secrets Source."""
-        return (get_appdata_dir() / 'Secrets Source' / 'jsondata' / 'Moria'
-                / 'Content' / 'Mods' / 'Tech' / 'Data' / 'StringTables')
+        """Get path to the StringTables directory in game output."""
+        return (get_appdata_dir() / 'output' / 'jsondata' / 'Moria'
+                / 'Content' / 'Tech' / 'Data' / 'StringTables')
 
     def _load_string_table(self) -> dict:
-        """Load string tables from all ST_*.json files.
+        """Load string tables from all JSON files in StringTable directories.
 
-        The string table files use the KeysToEntries format:
-        [{"StringTable": {"KeysToEntries": {"GameName.Name": "Display Name", ...}}}]
+        Supports two formats:
+        - Mod format: {"StringTable": {"KeysToEntries": {"Key.Name": "Value", ...}}}
+        - Game format (UAssetAPI): {"Exports": [{"Table": {"Value": [["Key.Name", "Value"], ...]}}]}
 
         Returns:
             Dict mapping internal names to {"name": display_name, "description": desc}
@@ -5521,9 +5514,9 @@ class BuildingsView(ctk.CTkFrame):
             logger.debug("StringTables directory not found: %s", st_dir)
             return string_table
 
-        st_files = list(st_dir.glob("ST_*.json"))
+        st_files = list(st_dir.glob("*.json"))
         if not st_files:
-            logger.debug("No ST_*.json files found in %s", st_dir)
+            logger.debug("No string table JSON files found in %s", st_dir)
             return string_table
 
         for st_path in st_files:
@@ -5531,46 +5524,71 @@ class BuildingsView(ctk.CTkFrame):
                 with open(st_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
 
-                # Handle array format [{"StringTable": {...}}]
-                if isinstance(data, list) and data:
-                    entries_obj = data[0]
-                elif isinstance(data, dict):
-                    entries_obj = data
-                else:
-                    continue
+                key_value_pairs = []
 
-                keys_to_entries = (entries_obj
-                                   .get("StringTable", {})
-                                   .get("KeysToEntries", {}))
+                # Try game format: Exports[0].Table.Value = [[key, value], ...]
+                if isinstance(data, dict) and 'Exports' in data:
+                    exports = data.get('Exports', [])
+                    if exports:
+                        table = exports[0].get('Table', {})
+                        table_value = table.get('Value', [])
+                        if isinstance(table_value, list):
+                            for pair in table_value:
+                                if isinstance(pair, list) and len(pair) == 2:
+                                    key_value_pairs.append((pair[0], pair[1]))
 
-                if not keys_to_entries:
-                    continue
-
-                # Parse "GameName.Name" and "GameName.Description" entries
-                for key, value in keys_to_entries.items():
-                    if "." not in key:
+                # Try mod format: StringTable.KeysToEntries = {key: value, ...}
+                if not key_value_pairs:
+                    if isinstance(data, list) and data:
+                        entries_obj = data[0]
+                    elif isinstance(data, dict):
+                        entries_obj = data
+                    else:
                         continue
-                    # Split on last dot: "GameName.Name" or "GameName.Description"
-                    game_name, field_type = key.rsplit(".", 1)
 
-                    if game_name not in string_table:
-                        string_table[game_name] = {"name": "", "description": ""}
+                    keys_to_entries = (entries_obj
+                                       .get("StringTable", {})
+                                       .get("KeysToEntries", {}))
+                    key_value_pairs = list(keys_to_entries.items())
 
-                    if field_type == "Name":
-                        string_table[game_name]["name"] = value
-                    elif field_type == "Description":
-                        string_table[game_name]["description"] = value
+                if not key_value_pairs:
+                    continue
 
-                    # Also store with dots replaced by underscores for
-                    # variant matching (e.g. "Base.RedSandstone" -> "Base_RedSandstone")
-                    if "." in game_name:
-                        alt_name = game_name.replace(".", "_")
-                        if alt_name not in string_table:
-                            string_table[alt_name] = {"name": "", "description": ""}
-                        if field_type == "Name":
-                            string_table[alt_name]["name"] = value
-                        elif field_type == "Description":
-                            string_table[alt_name]["description"] = value
+                # Parse string table entries. Three key formats:
+                # 1. "GameName.Name" / "GameName.Description" - standard
+                # 2. "GameName.Variant.Name" - dot-separated variant
+                # 3. "Key" (no .Name/.Description suffix) - direct name entry
+                for key, value in key_value_pairs:
+                    if "." in key:
+                        game_name, field_type = key.rsplit(".", 1)
+                        if field_type in ("Name", "Description"):
+                            if game_name not in string_table:
+                                string_table[game_name] = {"name": "", "description": ""}
+                            if field_type == "Name":
+                                string_table[game_name]["name"] = value
+                            else:
+                                string_table[game_name]["description"] = value
+                            # Also store with dots replaced by underscores
+                            if "." in game_name:
+                                alt_name = game_name.replace(".", "_")
+                                if alt_name not in string_table:
+                                    string_table[alt_name] = {"name": "", "description": ""}
+                                if field_type == "Name":
+                                    string_table[alt_name]["name"] = value
+                                else:
+                                    string_table[alt_name]["description"] = value
+                            continue
+
+                    # Direct name entry (no .Name suffix) - store full key as lookup
+                    if key not in string_table:
+                        string_table[key] = {"name": "", "description": ""}
+                    string_table[key]["name"] = value
+                    # Also store with dots replaced by underscores
+                    if "." in key:
+                        alt_key = key.replace(".", "_")
+                        if alt_key not in string_table:
+                            string_table[alt_key] = {"name": "", "description": ""}
+                        string_table[alt_key]["name"] = value
 
             except (json.JSONDecodeError, OSError, KeyError, TypeError) as e:
                 logger.error("Error loading string table %s: %s", st_path.name, e)
@@ -5578,6 +5596,71 @@ class BuildingsView(ctk.CTkFrame):
         logger.info("Loaded %s display names from %s string table files",
                      len(string_table), len(st_files))
         return string_table
+
+    def _resolve_display_names_from_definitions(self):
+        """Resolve display names from definition data tables via DisplayName property.
+
+        Weapons, armor, and tools use a DisplayName property that references
+        a string table entry (e.g., TableId + Value like 'Weapons.Spear.Iron.Name').
+        This method reads those references and adds recipe_name -> display_name
+        mappings to self.string_table.
+        """
+        # Definition tables that may have DisplayName properties.
+        # Use explicit paths (not _get_cache_constructions_path) because
+        # view_mode may be 'definitions' at init time.
+        cache_base = get_appdata_dir() / 'cache' / 'constructions'
+        def_table_specs = [
+            ('buildings', 'DT_Constructions.json'),
+            ('weapons', 'DT_Weapons.json'),
+            ('armor', 'DT_Armor.json'),
+            ('tools', 'DT_Tools.json'),
+            ('items', 'DT_Items.json'),
+            ('flora', 'DT_Moria_Flora.json'),
+            ('loot', 'DT_Loot.json'),
+        ]
+        def_tables = []
+        for mode, filename in def_table_specs:
+            path = cache_base / mode / filename
+            if path.exists():
+                def_tables.append(path)
+
+        resolved = 0
+        for table_path in def_tables:
+            if not table_path.exists():
+                continue
+            rows = self._load_all_rows(table_path)
+            for row_name, row in rows.items():
+                # Skip if already in string_table
+                if row_name in self.string_table and self.string_table[row_name].get('name'):
+                    continue
+                # Look for DisplayName property
+                for prop in row.get('Value', []):
+                    if prop.get('Name') == 'DisplayName' and prop.get('Value'):
+                        st_key = prop['Value']
+                        entry = None
+
+                        # Try 1: direct lookup (for keys without .Name suffix)
+                        entry = self.string_table.get(st_key)
+                        if not entry or not entry.get('name'):
+                            entry = self.string_table.get(st_key.replace('.', '_'))
+
+                        # Try 2: strip .Name suffix and lookup game_name
+                        if (not entry or not entry.get('name')) and '.' in st_key:
+                            game_name = st_key.rsplit('.', 1)[0]
+                            entry = self.string_table.get(game_name)
+                            if not entry or not entry.get('name'):
+                                entry = self.string_table.get(
+                                    game_name.replace('.', '_'))
+
+                        if entry and entry.get('name'):
+                            self.string_table[row_name] = {
+                                'name': entry['name'],
+                                'description': entry.get('description', ''),
+                            }
+                            resolved += 1
+                        break
+        if resolved:
+            logger.info("Resolved %d additional display names from definition tables", resolved)
 
     def _lookup_game_name(self, internal_name: str) -> str:
         """Look up the game display name for an internal recipe name.
@@ -5815,37 +5898,27 @@ class BuildingsView(ctk.CTkFrame):
         return constructions
 
     def _load_secrets_buildings(self):
-        """Load building recipes from Secrets mod, showing only mod-added items.
+        """Load building recipes from game data, showing all game items.
 
-        Shows items that exist in BOTH:
-        - New recipes (in Secret Recipe but not in Game Recipe)
-        - New constructions (in Secret Constructions but not in Game Constructions)
-
-        This ensures we only show complete building definitions with both
-        a recipe and a construction entry. All operations use cached copies.
+        Shows items that exist in BOTH the game recipes and game constructions
+        tables. All operations use cached copies of game output files.
         """
         self.view_mode = 'buildings'
-        self._set_status("Loading Secrets buildings...")
+        self._set_status("Loading game buildings...")
 
-        # Ensure cache files exist (copies from Secrets Source if needed)
+        # Ensure cache files exist (copies from game output if needed)
         self._ensure_cache_files()
 
-        # Get names from cache and game JSON files using Table.Data structure
-        secret_recipe_names = self._get_names_from_table_data(self._get_cache_recipes_path())
-        game_recipe_names = self._get_names_from_table_data(self._get_game_recipes_path())
-        secret_construction_names = self._get_names_from_table_data(self._get_cache_constructions_path())
-        game_construction_names = self._get_names_from_table_data(self._get_game_constructions_path())
+        # Get names from cached game JSON files
+        game_recipe_names = self._get_names_from_table_data(self._get_cache_recipes_path())
+        game_construction_names = self._get_names_from_table_data(self._get_cache_constructions_path())
 
-        # Find NEW items (in Secret but not in Game)
-        new_recipes = secret_recipe_names - game_recipe_names
-        new_constructions = secret_construction_names - game_construction_names
+        # Show items that have BOTH a recipe and construction entry
+        matching_items = game_recipe_names & game_construction_names
 
-        # Find MATCHING items (in both new recipes AND new constructions)
-        matching_items = new_recipes & new_constructions
+        logger.info("Game recipes: %s, Game constructions: %s, Matching: %s", len(game_recipe_names), len(game_construction_names), len(matching_items))
 
-        logger.info("New recipes: %s, New constructions: %s, Matching: %s", len(new_recipes), len(new_constructions), len(matching_items))
-
-        # Build secrets_recipes dict for the matching items
+        # Build recipes dict for the matching items
         self.secrets_recipes = {}
         for name in matching_items:
             self.secrets_recipes[name] = {'Name': name}
@@ -5855,9 +5928,9 @@ class BuildingsView(ctk.CTkFrame):
         self.secrets_constructions = {name: {'Name': name} for name in matching_items}
 
         if not self.secrets_recipes:
-            self._set_status("No mod-unique buildings found in Secrets Source")
+            self._set_status("No buildings found in game data")
         else:
-            self._set_status(f"Found {len(self.secrets_recipes)} mod buildings")
+            self._set_status(f"Found {len(self.secrets_recipes)} game buildings")
 
         # Update the list with matching items
         self._populate_secrets_list(self.secrets_recipes)
@@ -5991,11 +6064,11 @@ class BuildingsView(ctk.CTkFrame):
         """Check if an item is visible based on recipe and definition data.
 
         Algorithm:
-        1. If the construction definition EnabledState is Live -> visible (green),
+        1. If the construction definition EnabledState is Live → visible (green),
            regardless of unlock types (the object is code-controlled but active).
         2. If EnabledState is Disabled or Testing AND both DefaultUnlocks and
-           SandboxUnlocks are Manual -> hidden (red).
-        3. Otherwise -> visible (green).
+           SandboxUnlocks are Manual → hidden (red).
+        3. Otherwise → visible (green).
         """
         # Check construction definition EnabledState
         if definition_row:
@@ -6105,7 +6178,7 @@ class BuildingsView(ctk.CTkFrame):
     def _get_recipe_names_from_namemap(self, json_path: Path) -> set:
         """Extract recipe/construction names from a JSON file's NameMap.
 
-        This is useful for Secrets Source files which have names in NameMap
+        This is useful for files which have names in NameMap
         but no full row data (data is in binary Extras field).
 
         Args:
@@ -6152,28 +6225,22 @@ class BuildingsView(ctk.CTkFrame):
         return names
 
     def _load_secrets_weapons(self):
-        """Load weapon items from Secrets mod, showing only mod-added items.
+        """Load weapon items from game data, showing all game items.
 
-        Shows items that exist in BOTH:
-        - New recipes (in Secret ItemRecipes but not in Game ItemRecipes)
-        - New weapons (in Secret Weapons but not in Game Weapons)
+        Shows items that have both a recipe and weapon definition entry.
         """
         self.view_mode = 'weapons'
-        self._set_status("Loading Secrets weapons...")
+        self._set_status("Loading game weapons...")
 
         self._ensure_cache_files()
 
-        secret_recipe_names = self._get_names_from_table_data(self._get_cache_recipes_path())
-        game_recipe_names = self._get_names_from_table_data(self._get_game_recipes_path())
-        secret_weapon_names = self._get_names_from_table_data(self._get_cache_constructions_path())
-        game_weapon_names = self._get_names_from_table_data(self._get_game_constructions_path())
+        game_recipe_names = self._get_names_from_table_data(self._get_cache_recipes_path())
+        game_weapon_names = self._get_names_from_table_data(self._get_cache_constructions_path())
 
-        new_recipes = secret_recipe_names - game_recipe_names
-        new_weapons = secret_weapon_names - game_weapon_names
-        matching_items = new_recipes & new_weapons
+        matching_items = game_recipe_names & game_weapon_names
 
-        logger.info("New item recipes: %s, New weapons: %s, Matching: %s",
-                     len(new_recipes), len(new_weapons), len(matching_items))
+        logger.info("Game recipes: %s, Game weapons: %s, Matching: %s",
+                     len(game_recipe_names), len(game_weapon_names), len(matching_items))
 
         self.secrets_recipes = {}
         for name in matching_items:
@@ -6183,35 +6250,29 @@ class BuildingsView(ctk.CTkFrame):
         self.secrets_constructions = {name: {'Name': name} for name in matching_items}
 
         if not self.secrets_recipes:
-            self._set_status("No mod-unique weapons found in Secrets Source")
+            self._set_status("No weapons found in game data")
         else:
-            self._set_status(f"Found {len(self.secrets_recipes)} mod weapons")
+            self._set_status(f"Found {len(self.secrets_recipes)} game weapons")
 
         self._populate_secrets_list(self.secrets_recipes)
 
     def _load_secrets_armor(self):
-        """Load armor items from Secrets mod, showing only mod-added items.
+        """Load armor items from game data, showing all game items.
 
-        Shows items that exist in BOTH:
-        - New recipes (in Secret ItemRecipes but not in Game ItemRecipes)
-        - New armor (in Secret Armor but not in Game Armor)
+        Shows items that have both a recipe and armor definition entry.
         """
         self.view_mode = 'armor'
-        self._set_status("Loading Secrets armor...")
+        self._set_status("Loading game armor...")
 
         self._ensure_cache_files()
 
-        secret_recipe_names = self._get_names_from_table_data(self._get_cache_recipes_path())
-        game_recipe_names = self._get_names_from_table_data(self._get_game_recipes_path())
-        secret_armor_names = self._get_names_from_table_data(self._get_cache_constructions_path())
-        game_armor_names = self._get_names_from_table_data(self._get_game_constructions_path())
+        game_recipe_names = self._get_names_from_table_data(self._get_cache_recipes_path())
+        game_armor_names = self._get_names_from_table_data(self._get_cache_constructions_path())
 
-        new_recipes = secret_recipe_names - game_recipe_names
-        new_armor = secret_armor_names - game_armor_names
-        matching_items = new_recipes & new_armor
+        matching_items = game_recipe_names & game_armor_names
 
-        logger.info("New item recipes: %s, New armor: %s, Matching: %s",
-                     len(new_recipes), len(new_armor), len(matching_items))
+        logger.info("Game recipes: %s, Game armor: %s, Matching: %s",
+                     len(game_recipe_names), len(game_armor_names), len(matching_items))
 
         self.secrets_recipes = {}
         for name in matching_items:
@@ -6221,53 +6282,47 @@ class BuildingsView(ctk.CTkFrame):
         self.secrets_constructions = {name: {'Name': name} for name in matching_items}
 
         if not self.secrets_recipes:
-            self._set_status("No mod-unique armor found in Secrets Source")
+            self._set_status("No armor found in game data")
         else:
             self._set_status(f"Found {len(self.secrets_recipes)} mod armor items")
 
         self._populate_secrets_list(self.secrets_recipes)
 
     def _load_secrets_tools(self):
-        """Load tool items from Secrets mod, showing only mod-added items."""
+        """Load tool items from game data, showing all game items."""
         self.view_mode = 'tools'
-        self._set_status("Loading Secrets tools...")
+        self._set_status("Loading game tools...")
 
         self._ensure_cache_files()
 
-        secret_recipe_names = self._get_names_from_table_data(self._get_cache_recipes_path())
-        game_recipe_names = self._get_names_from_table_data(self._get_game_recipes_path())
-        secret_tool_names = self._get_names_from_table_data(self._get_cache_constructions_path())
-        game_tool_names = self._get_names_from_table_data(self._get_game_constructions_path())
+        game_recipe_names = self._get_names_from_table_data(self._get_cache_recipes_path())
+        game_tool_names = self._get_names_from_table_data(self._get_cache_constructions_path())
 
-        new_recipes = secret_recipe_names - game_recipe_names
-        new_tools = secret_tool_names - game_tool_names
-        matching_items = new_recipes & new_tools
+        matching_items = game_recipe_names & game_tool_names
 
-        logger.info("New item recipes: %s, New tools: %s, Matching: %s",
-                     len(new_recipes), len(new_tools), len(matching_items))
+        logger.info("Game recipes: %s, Game tools: %s, Matching: %s",
+                     len(game_recipe_names), len(game_tool_names), len(matching_items))
 
         self.secrets_recipes = {name: {'Name': name} for name in matching_items}
         self.game_recipe_names = game_recipe_names
         self.secrets_constructions = {name: {'Name': name} for name in matching_items}
 
         if not self.secrets_recipes:
-            self._set_status("No mod-unique tools found in Secrets Source")
+            self._set_status("No tools found in game data")
         else:
             self._set_status(f"Found {len(self.secrets_recipes)} mod tools")
 
         self._populate_secrets_list(self.secrets_recipes)
 
     def _load_secrets_flora(self):
-        """Load flora items from Secrets mod, showing only mod-added items."""
+        """Load flora items from game data, showing all game items."""
         self.view_mode = 'flora'
-        self._set_status("Loading Secrets flora...")
+        self._set_status("Loading game flora...")
 
         self._ensure_cache_files()
 
-        secret_flora_names = self._get_names_from_table_data(self._get_cache_constructions_path())
-        game_flora_names = self._get_names_from_table_data(self._get_game_constructions_path())
-
-        new_flora = secret_flora_names - game_flora_names
+        game_flora_names = self._get_names_from_table_data(self._get_cache_constructions_path())
+        new_flora = game_flora_names
 
         logger.info("New flora: %s", len(new_flora))
 
@@ -6276,23 +6331,21 @@ class BuildingsView(ctk.CTkFrame):
         self.secrets_constructions = {name: {'Name': name} for name in new_flora}
 
         if not self.secrets_recipes:
-            self._set_status("No mod-unique flora found in Secrets Source")
+            self._set_status("No flora found in game data")
         else:
             self._set_status(f"Found {len(self.secrets_recipes)} mod flora items")
 
         self._populate_secrets_list(self.secrets_recipes)
 
     def _load_secrets_loot(self):
-        """Load loot items from Secrets mod, showing only mod-added items."""
+        """Load loot items from game data, showing all game items."""
         self.view_mode = 'loot'
-        self._set_status("Loading Secrets loot...")
+        self._set_status("Loading game loot...")
 
         self._ensure_cache_files()
 
-        secret_loot_names = self._get_names_from_table_data(self._get_cache_constructions_path())
-        game_loot_names = self._get_names_from_table_data(self._get_game_constructions_path())
-
-        new_loot = secret_loot_names - game_loot_names
+        game_loot_names = self._get_names_from_table_data(self._get_cache_constructions_path())
+        new_loot = game_loot_names
 
         logger.info("New loot: %s", len(new_loot))
 
@@ -6301,39 +6354,35 @@ class BuildingsView(ctk.CTkFrame):
         self.secrets_constructions = {name: {'Name': name} for name in new_loot}
 
         if not self.secrets_recipes:
-            self._set_status("No mod-unique loot found in Secrets Source")
+            self._set_status("No loot found in game data")
         else:
             self._set_status(f"Found {len(self.secrets_recipes)} mod loot items")
 
         self._populate_secrets_list(self.secrets_recipes)
 
     def _load_secrets_items(self):
-        """Load general items from Secrets mod, showing only mod-added items."""
+        """Load items from game data, showing all game items."""
         self.view_mode = 'items'
-        self._set_status("Loading Secrets items...")
+        self._set_status("Loading game items...")
 
         self._ensure_cache_files()
 
-        secret_recipe_names = self._get_names_from_table_data(self._get_cache_recipes_path())
-        game_recipe_names = self._get_names_from_table_data(self._get_game_recipes_path())
-        secret_item_names = self._get_names_from_table_data(self._get_cache_constructions_path())
-        game_item_names = self._get_names_from_table_data(self._get_game_constructions_path())
+        game_recipe_names = self._get_names_from_table_data(self._get_cache_recipes_path())
+        game_item_names = self._get_names_from_table_data(self._get_cache_constructions_path())
 
-        new_recipes = secret_recipe_names - game_recipe_names
-        new_items = secret_item_names - game_item_names
-        matching_items = new_recipes & new_items
+        matching_items = game_recipe_names & game_item_names
 
-        logger.info("New item recipes: %s, New items: %s, Matching: %s",
-                     len(new_recipes), len(new_items), len(matching_items))
+        logger.info("Game recipes: %s, Game items: %s, Matching: %s",
+                     len(game_recipe_names), len(game_item_names), len(matching_items))
 
         self.secrets_recipes = {name: {'Name': name} for name in matching_items}
         self.game_recipe_names = game_recipe_names
         self.secrets_constructions = {name: {'Name': name} for name in matching_items}
 
         if not self.secrets_recipes:
-            self._set_status("No mod-unique items found in Secrets Source")
+            self._set_status("No items found in game data")
         else:
-            self._set_status(f"Found {len(self.secrets_recipes)} mod items")
+            self._set_status(f"Found {len(self.secrets_recipes)} game items")
 
         self._populate_secrets_list(self.secrets_recipes)
 
@@ -6351,12 +6400,12 @@ class BuildingsView(ctk.CTkFrame):
         self.construction_check_vars.clear()
 
         # Update count
-        self.count_label.configure(text=f"{len(recipes)} Secrets items")
+        self.count_label.configure(text=f"{len(recipes)} items")
 
         if not recipes:
             no_files_label = ctk.CTkLabel(
                 self.building_list,
-                text="No Secrets buildings found\n\nRun Import Secrets first\nto load mod source files",
+                text="No buildings found\n\nRun Import Game Files first\nto load game data",
                 text_color="gray"
             )
             no_files_label.pack(pady=20)
@@ -6364,6 +6413,11 @@ class BuildingsView(ctk.CTkFrame):
 
         # Sort recipe names alphabetically by game name
         sorted_names = sorted(recipes.keys(), key=lambda n: self._lookup_game_name(n).lower())
+
+        # Log string table lookup stats
+        matched = sum(1 for n in sorted_names if self.string_table.get(n, {}).get('name'))
+        logger.info("String table lookup: %d/%d matched, table has %d entries",
+                     matched, len(sorted_names), len(self.string_table))
 
         # Compute visibility for all items and get eye icons
         visibility_map = self._compute_visibility_map(sorted_names)
@@ -6434,6 +6488,9 @@ class BuildingsView(ctk.CTkFrame):
         # Update bulk eye icon based on visibility of all listed items
         self._update_bulk_eye_state()
 
+        # Scroll to top
+        self.building_list._parent_canvas.yview_moveto(0.0)
+
     def _filter_secrets_list(self):
         """Filter the secrets list based on search text."""
         if not self.def_search_var:
@@ -6452,6 +6509,8 @@ class BuildingsView(ctk.CTkFrame):
                 row_frame, _ = item_data
                 searchable = str(name).lower() if not isinstance(name, Path) else name.stem.lower()
 
+            if not row_frame.winfo_exists():
+                continue
             if not filter_text or filter_text in searchable:
                 row_frame.pack(fill="x", pady=1)
                 visible_count += 1
@@ -6463,7 +6522,7 @@ class BuildingsView(ctk.CTkFrame):
         if filter_text:
             self.count_label.configure(text=f"{visible_count} of {total} items")
         else:
-            mode_label = "Secrets items" if self.view_mode in ('buildings', 'weapons', 'armor') else "definitions"
+            mode_label = "items" if self.view_mode in ('buildings', 'weapons', 'armor') else "definitions"
             self.count_label.configure(text=f"{total} {mode_label}")
 
     def _on_secrets_item_hover(self, recipe_name: str, label: ctk.CTkLabel, entering: bool):
@@ -6503,7 +6562,7 @@ class BuildingsView(ctk.CTkFrame):
             'construction_fields': construction_fields,
             'is_secrets_item': True,
             'title': display_name,
-            'author': 'Secrets of Khazad-dum',
+            'author': 'Return to Moria',
             'description': f'Internal name: {recipe_name}',
         }
         self.current_def_path = None  # No file path for secrets items
